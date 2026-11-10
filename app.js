@@ -14,7 +14,7 @@ var DEFAULTS={
   tagline:"Ceramiche artigianali dalla Turchia",
   story:"Selezioniamo ceramiche dipinte a mano in piccoli laboratori turchi, dove la tradizione di Iznik e Kütahya è ancora un mestiere di famiglia. Ogni pezzo arriva da noi, lo guardiamo uno a uno e lo imballiamo con cura prima di spedirlo.",
   shippingCost:7.9, freeFrom:90, shippingDays:"3-5 giorni lavorativi",
-  company:"", vat:"", address:"", email:"", phone:"", instagram:"", rea:"", pec:"", regime:"forfettario"
+  company:"", vat:"", address:"", email:"", phone:"", instagram:"", rea:"", pec:"", regime:"forfettario", siteDesc:""
 };
 var DEMO=[
   {id:"demo-1",name:"Ciotola Iznik cobalto",category:"Ciotole",type:"ciotola",price:34,stock:6,c1:"#1d3fae",c2:"#37b6c9",dims:"Ø 18 cm · h 8 cm",desc:"Ciotola dipinta a mano con motivi floreali in blu cobalto su fondo bianco. Adatta a zuppe, frutta o come centrotavola.",demo:true},
@@ -48,13 +48,13 @@ function picOf(p){
 }
 
 /* ---------- stato ---------- */
-var ADMIN=!!window.ADMIN_PAGE;
+var ADMIN=!!window.ADMIN_PAGE, PAGE=window.ADMIN_PAGE?"admin":(window.PAGE||"static");
 var sb=null, session=null, isAdmin=false;
 var ADMIN_EMAIL="negozio-admin@example.com";
 var SUPA_URL="https://dbstgkxqnzbaxxxdgqum.supabase.co", SUPA_KEY="sb_publishable_8POu32i6i-kz4IZlbjOQHw_Nrofggk0";
 function U(path){ return SUPA_URL+"/storage/v1/object/public/shop-images/"+encodeURI(path); }
 var products=[], loaded=false, orders=[], settings=Object.assign({},DEFAULTS);
-var cart=[], filterCat="Tutti", flash=null, gallery=0, btype="privato";
+var cart=[], filterCat="Tutti", flash=null, gallery=0, btype="privato", loadFailed=false;
 var adminTab="prodotti", edit=null, confirmDel=null, busy=false;
 try{ cart=JSON.parse(localStorage.getItem("cart-v1")||"[]")||[]; }catch(e){ cart=[]; }
 function saveCart(){ try{ localStorage.setItem("cart-v1",JSON.stringify(cart)); }catch(e){} }
@@ -73,6 +73,11 @@ function totals(){
   var sub=0; cartLines().forEach(function(l){sub+=l.p.price*l.qty});
   var ship=sub===0?0:(sub>=Number(settings.freeFrom)?0:Number(settings.shippingCost));
   return {sub:sub,ship:ship,total:sub+ship};
+}
+function addRaw(id,n,max){
+  var c=cart.find(function(x){return x.id===id});
+  if(c) c.qty=Math.min(max,c.qty+(n||1)); else cart.push({id:id,qty:Math.min(max,n||1)});
+  saveCart(); updateChrome();
 }
 function addToCart(id,n){
   var p=byId(id); if(!p||(p.stock||0)<=0) return;
@@ -98,12 +103,12 @@ function vHome(){
   return '<section class="hero"><div class="hero-copy"><p class="eyebrow">'+esc(settings.tagline)+'</p>'+
     '<h1>Ceramiche turche, scelte una per una.</h1>'+
     '<p class="lead">Ciotole, piatti, tazze e vasi dipinti a mano nei laboratori dell’Anatolia. Pezzi da usare ogni giorno, mai due identici.</p>'+
-    '<div class="cta-row"><a class="btn" href="#negozio">Scopri la collezione</a><a class="btn ghost" href="#chi-siamo">La nostra selezione</a></div></div>'+
+    '<div class="cta-row"><a class="btn" href="negozio/">Scopri la collezione</a><a class="btn ghost" href="chi-siamo/">La nostra selezione</a></div></div>'+
     '<div class="hero-art" aria-hidden="true">'+vessel("vaso","#e9a23b","#fff4d6",120)+vessel("ciotola","#f4f6f5","#1d3fae",190)+vessel("tazza","#17b3ad","#ffffff",110)+'</div></section>'+
     '<section class="sec"><div class="values"><div><h3>Selezionate in Turchia</h3><p>Lavoriamo con piccoli laboratori e scegliamo i pezzi di persona.</p></div>'+
     '<div><h3>Dipinte a mano</h3><p>Ogni ceramica ha il suo disegno: piccole differenze di smalto sono parte del pezzo.</p></div>'+
     '<div><h3>Imballate con cura</h3><p>Protezioni su misura per far arrivare tutto intero, anche i vasi più delicati.</p></div></div></section>'+
-    '<section class="sec"><div class="sec-head"><div><p class="eyebrow">In vetrina</p><h2>Le ultime arrivate</h2></div><a class="btn ghost small" href="#negozio">Vedi tutto</a></div><div class="grid">'+l.map(card).join("")+'</div>'+demoBar()+'</section>'+
+    '<section class="sec"><div class="sec-head"><div><p class="eyebrow">In vetrina</p><h2>Le ultime arrivate</h2></div><a class="btn ghost small" href="negozio/">Vedi tutto</a></div><div class="grid">'+l.map(card).join("")+'</div>'+demoBar()+'</section>'+
     '<section class="sec"><div class="story"><div><p class="eyebrow">La nostra storia</p><h2>Una selezione, non una fabbrica.</h2></div><p>'+esc(settings.story)+'</p></div></section>';
 }
 function vShop(){
@@ -115,23 +120,24 @@ function vShop(){
 }
 function vProduct(id){
   var p=byId(id);
-  if(!p) return '<section class="sec"><div class="empty">Prodotto non trovato. <a href="#negozio">Torna al negozio</a></div></section>';
+  if(!p) return '<section class="sec"><div class="empty">Prodotto non trovato. <a href="negozio/">Torna al negozio</a></div></section>';
   var imgs=p.images||[], g=Math.min(gallery,Math.max(imgs.length-1,0));
   var big=imgs.length?'<img src="'+esc(U(imgs[g]))+'" alt="'+esc(p.name)+'">':picOf(p);
   var th=imgs.length>1?'<div class="thumbs">'+imgs.map(function(x,i){return '<button data-act="thumb" data-v="'+i+'" aria-current="'+(i===g)+'" aria-label="Foto '+(i+1)+'"><img src="'+esc(U(x))+'" alt=""></button>'}).join("")+'</div>':'';
   var sold=(p.stock||0)<=0;
   return '<div class="pdp"><div><div class="big">'+big+'</div>'+th+'</div><div class="pdp-info">'+
-    '<p class="crumb"><a href="#negozio">Negozio</a> / '+esc(p.category||"")+'</p><h1>'+esc(p.name)+'</h1><p class="price">'+eur(p.price)+'</p>'+
+    '<p class="crumb"><a href="negozio/">Negozio</a> / '+esc(p.category||"")+'</p><h1>'+esc(p.name)+'</h1><p class="price">'+eur(p.price)+'</p>'+
     '<p>'+esc(p.desc||"")+'</p>'+
     '<dl class="specs">'+(p.dims?'<dt>Misure</dt><dd>'+esc(p.dims)+'</dd>':'')+'<dt>Materiale</dt><dd>'+esc(p.material||"Ceramica smaltata, dipinta a mano")+'</dd><dt>Cura</dt><dd>'+esc(p.care||"Lavaggio a mano consigliato")+'</dd><dt>Disponibilità</dt><dd>'+(sold?"Esaurito":((p.stock||0)<=3?"Ultimi "+p.stock+" pezzi":"Disponibile"))+'</dd></dl>'+
     '<div class="note">Pezzo artigianale: piccole variazioni di colore e di smalto sono normali e lo rendono unico.</div>'+
-    '<div style="display:flex;gap:12px;flex-wrap:wrap"><button class="btn" data-act="add" data-v="'+esc(p.id)+'"'+(sold?' disabled':'')+'>'+(sold?'Esaurito':'Aggiungi al carrello')+'</button><a class="btn ghost" href="#spedizioni">Spedizioni e resi</a></div>'+
+    '<div style="display:flex;gap:12px;flex-wrap:wrap"><button class="btn" data-act="add" data-v="'+esc(p.id)+'"'+(sold?' disabled':'')+'>'+(sold?'Esaurito':'Aggiungi al carrello')+'</button><a class="btn ghost" href="spedizioni/">Spedizioni e resi</a></div>'+
     (p.demo?'<p class="note warn">Prodotto di esempio per la bozza del sito.</p>':'')+'</div></div>';
 }
 function vCart(){
+  if(PAGE==="cart"&&!loaded&&!flash) return loadFailed?'<section class="sec"><div class="msg err">Non riesco a caricare i prodotti. Ricarica la pagina tra poco.</div></section>':'<section class="sec"><p class="note">Carico il carrello…</p></section>';
   var L=cartLines(), t=totals();
-  if(flash&&flash.type==="order") return '<section class="sec"><div class="msg ok"><strong>Richiesta ricevuta.</strong> '+esc(flash.text)+'</div><p style="margin-top:16px"><a class="btn" href="#negozio">Continua a guardare</a></p></section>';
-  if(!L.length) return '<section class="sec"><h2>Il carrello è vuoto</h2><p style="margin:12px 0 20px;color:var(--muted)">Aggiungi una ceramica per iniziare.</p><a class="btn" href="#negozio">Vai al negozio</a></section>';
+  if(flash&&flash.type==="order") return '<section class="sec"><div class="msg ok"><strong>Richiesta ricevuta.</strong> '+esc(flash.text)+'</div><p style="margin-top:16px"><a class="btn" href="negozio/">Continua a guardare</a></p></section>';
+  if(!L.length) return '<section class="sec"><h2>Il carrello è vuoto</h2><p style="margin:12px 0 20px;color:var(--muted)">Aggiungi una ceramica per iniziare.</p><a class="btn" href="negozio/">Vai al negozio</a></section>';
   var lines=L.map(function(l){return '<div class="line"><div class="pic">'+picOf(l.p)+'</div><div><h3>'+esc(l.p.name)+'</h3><small>'+eur(l.p.price)+' cad.</small><div style="margin-top:6px"><span class="qty"><button data-act="dec" data-v="'+esc(l.p.id)+'" aria-label="Meno">−</button><span>'+l.qty+'</span><button data-act="inc" data-v="'+esc(l.p.id)+'" aria-label="Più">+</button></span> <button class="btn ghost small" data-act="rm" data-v="'+esc(l.p.id)+'">Rimuovi</button></div></div><strong>'+eur(l.p.price*l.qty)+'</strong></div>'}).join("");
   var free=Number(settings.freeFrom), miss=free-t.sub;
   return '<div class="cart"><div><h1 style="font-size:2rem;margin-bottom:8px">Carrello</h1>'+lines+(miss>0&&t.sub>0?'<p class="note" style="margin-top:16px">Ti mancano '+eur(miss)+' per la spedizione gratuita.</p>':'')+'</div>'+
@@ -148,8 +154,8 @@ function vCart(){
     '<label class="check"><input type="checkbox" name="same" id="c-same" checked><span>Indirizzo di fatturazione uguale a quello di spedizione</span></label>'+
     '<div data-bill="addr" class="form" hidden><label class="f">Indirizzo di fatturazione<input type="text" name="baddr" id="c-baddr"></label><div class="two"><label class="f">CAP<input type="text" name="bzip" id="c-bzip"></label><label class="f">Città<input type="text" name="bcity" id="c-bcity"></label></div></div></fieldset>'+
     '<label class="f">Note<textarea name="note" id="c-note"></textarea></label>'+
-    '<label class="check"><input type="checkbox" name="terms" required id="c-terms"><span>Ho letto le <a href="#condizioni">condizioni di vendita</a> e il <a href="#recesso">diritto di recesso</a>.</span></label>'+
-    '<label class="check"><input type="checkbox" name="privacy" required id="c-priv"><span>Ho letto l’<a href="#privacy">informativa privacy</a>.</span></label>'+
+    '<label class="check"><input type="checkbox" name="terms" required id="c-terms"><span>Ho letto le <a href="condizioni/">condizioni di vendita</a> e il <a href="recesso/">diritto di recesso</a>.</span></label>'+
+    '<label class="check"><input type="checkbox" name="privacy" required id="c-priv"><span>Ho letto l’<a href="privacy/">informativa privacy</a>.</span></label>'+
     '<div data-err></div>'+
     '<button class="btn" type="submit"'+(busy?' disabled':'')+'>Invia richiesta d’ordine</button></form></aside></div>';
 }
@@ -157,7 +163,7 @@ function vCart(){
 /* testi legali: partono dai dati inseriti in Gestione > Negozio */
 function S(k,ph){ return settings[k]?esc(settings[k]):'<mark>['+ph+']</mark>'; }
 function legalWrap(title,body){
-  return '<article class="legal"><p class="eyebrow">Informazioni legali</p><h1>'+title+'</h1><div class="note warn">Testo di partenza, da far controllare al commercialista o a un legale prima della pubblicazione. I campi evidenziati vanno compilati in Gestione, sezione Negozio.</div>'+body+'</article>';
+  return '<article class="legal"><p class="eyebrow">Informazioni legali</p><h1>'+title+'</h1>'+(settings.company&&settings.vat&&settings.address&&settings.email&&settings.rea?'':'<div class="note warn">Testo di partenza, da far controllare al commercialista o a un legale prima della pubblicazione. I campi evidenziati vanno compilati in Gestione, sezione Negozio.</div>')+body+'</article>';
 }
 var LEGAL={
   privacy:function(){return legalWrap("Informativa privacy",
@@ -175,7 +181,7 @@ var LEGAL={
     '<h2>Fattura</h2><p>Per ogni ordine emettiamo fattura con i dati di fatturazione indicati nel modulo. La ricevi all’indirizzo email indicato; le aziende anche tramite SDI.</p><h2>Ordine e pagamento</h2><p>Il contratto si conclude quando ricevi la nostra conferma d’ordine. I metodi di pagamento disponibili sono indicati in fase di acquisto.</p>'+
     '<h2>Consegna</h2><p>Spediamo in '+esc(settings.shippingDays)+' dalla conferma dell’ordine, salvo diversa indicazione. Controlla il pacco alla consegna e segnala subito eventuali danni al corriere.</p>'+
     '<h2>Garanzia legale</h2><p>Se sei consumatore hai la garanzia legale di conformità di 2 anni prevista dal Codice del Consumo. Per usarla scrivi a '+S("email","email")+'.</p>'+
-    '<h2>Recesso</h2><p>Hai 14 giorni per recedere, come spiegato nella pagina <a href="#recesso">Diritto di recesso</a>.</p>'+
+    '<h2>Recesso</h2><p>Hai 14 giorni per recedere, come spiegato nella pagina <a href="recesso/">Diritto di recesso</a>.</p>'+
     '<h2>Controversie</h2><p>Si applica la legge italiana. Per i consumatori è competente il giudice del luogo di residenza. Puoi usare anche la piattaforma europea per la risoluzione online delle controversie: ec.europa.eu/consumers/odr.</p>')},
   recesso:function(){return legalWrap("Diritto di recesso",
     '<p>Se acquisti come consumatore puoi recedere senza spiegare il motivo entro 14 giorni da quando ricevi il prodotto.</p>'+
@@ -186,8 +192,8 @@ var LEGAL={
   spedizioni:function(){return legalWrap("Spedizioni e resi",
     '<p>Spedizione in Italia in '+esc(settings.shippingDays)+'. Costo '+eur(settings.shippingCost)+', gratuita da '+eur(settings.freeFrom)+' di acquisti.</p>'+
     '<p>Ogni ceramica è protetta con materiali da imballo resistenti. Se un pezzo arriva rotto, scrivi a '+S("email","email")+' entro 48 ore con qualche foto del pacco e del contenuto: troveremo una soluzione.</p>'+
-    '<p>Per resi e rimborsi vedi <a href="#recesso">Diritto di recesso</a>.</p>')},
-  "chi-siamo":function(){return '<article class="legal"><p class="eyebrow">Chi siamo</p><h1>'+esc(settings.brand)+'</h1><p>'+esc(settings.story)+'</p><p>Ci trovi su Etsy e qui, nel nostro negozio. Se cerchi un pezzo particolare o un regalo, scrivici'+(settings.email?': '+esc(settings.email):'')+'.</p><p><a class="btn" href="#negozio">Vai al negozio</a></p></article>'}
+    '<p>Per resi e rimborsi vedi <a href="recesso/">Diritto di recesso</a>.</p>')},
+  "chi-siamo":function(){return '<article class="legal"><p class="eyebrow">Chi siamo</p><h1>'+esc(settings.brand)+'</h1><p>'+esc(settings.story)+'</p><p>Ci trovi su Etsy e qui, nel nostro negozio. Se cerchi un pezzo particolare o un regalo, scrivici'+(settings.email?': '+esc(settings.email):'')+'.</p><p><a class="btn" href="negozio/">Vai al negozio</a></p></article>'}
 };
 
 /* ---------- admin ---------- */
@@ -230,15 +236,39 @@ function aForm(){
     '<label class="f">Forma (per l’illustrazione senza foto)<select name="type" id="p-type">'+TYPES.map(function(t){return '<option value="'+t[0]+'"'+((p.type||"ciotola")===t[0]?' selected':'')+'>'+t[1]+'</option>'}).join("")+'</select></label></div>'+
     '<div class="two"><label class="f">Prezzo (€)<input type="number" name="price" id="p-price" min="0" step="0.01" required value="'+v("price")+'"></label>'+
     '<label class="f">Pezzi disponibili<input type="number" name="stock" id="p-stock" min="0" step="1" required value="'+v("stock","1")+'"></label></div>'+
-    '<label class="f">Descrizione<textarea name="desc" id="p-desc">'+v("desc")+'</textarea></label>'+
+    '<label class="f">Descrizione del prodotto<textarea name="desc" id="p-desc" style="min-height:170px">'+v("desc")+'</textarea></label>'+'<label class="f">Descrizione per Google, facoltativa<textarea name="meta" id="p-meta" maxlength="155" style="min-height:64px">'+v("meta")+'</textarea></label>'+
     '<div class="two"><label class="f">Misure<input type="text" name="dims" id="p-dims" placeholder="Ø 18 cm · h 8 cm" value="'+v("dims")+'"></label>'+
     '<label class="f">Materiale<input type="text" name="material" id="p-mat" value="'+v("material","Ceramica smaltata, dipinta a mano")+'"></label></div>'+
     '<label class="f">Cura<input type="text" name="care" id="p-care" value="'+v("care","Lavaggio a mano consigliato")+'"></label>'+
     '<div class="two"><label class="f">Colore principale<input type="color" name="c1" id="p-c1" value="'+v("c1","#1d3fae")+'"></label><label class="f">Colore secondario<input type="color" name="c2" id="p-c2" value="'+v("c2","#ffffff")+'"></label></div>'+
-    '<div class="f"><span style="font-size:.88rem;font-weight:500">Foto</span><div class="photos" id="photos">'+photosHtml()+'</div>'+
+    '<div class="f"><span style="font-size:.88rem;font-weight:500">Foto</span><div class="photos" id="photos">'+photosHtml()+'</div><div class="form" id="alts">'+altsHtml()+'</div>'+
     (sb?'<input type="file" id="p-files" accept="image/png,image/jpeg,image/webp" multiple><span id="upmsg" style="font-size:.85rem;color:var(--muted)">La prima foto è quella di copertina. Il caricamento parte appena scegli i file.</span>':'<span class="note">Il caricamento foto non è disponibile.</span>')+'</div>'+
-    '<label class="check"><input type="checkbox" name="visible" id="p-vis"'+(p.visible===false?'':' checked')+'><span>Visibile nel negozio</span></label>'+
+    '<div id="seo-check" class="seo"></div><label class="check"><input type="checkbox" name="visible" id="p-vis"'+(p.visible===false?'':' checked')+'><span>Visibile nel negozio</span></label>'+
     '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" type="submit"'+(busy?' disabled':'')+'>Salva prodotto</button><button class="btn ghost" type="button" data-act="cancel">Annulla</button></div></form>';
+}
+function slugify(s){ return String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,70); }
+function altsHtml(){
+  var im=(edit&&edit.images)||[], al=(edit&&edit.alts)||[];
+  return im.map(function(id,i){ return '<label class="f">Testo alternativo foto '+(i+1)+'<input type="text" id="alt-'+i+'" value="'+esc(al[i]||"")+'" maxlength="125" placeholder="Cosa si vede, es. Ciotola blu cobalto con decoro floreale"></label>'; }).join("");
+}
+function syncAlts(){
+  if(!edit) return;
+  var im=edit.images||[], old=edit.alts||[];
+  edit.alts=im.map(function(_,i){ var e=document.getElementById("alt-"+i); return e?e.value.trim():(old[i]||""); });
+}
+function seoUpdate(){
+  var box=document.getElementById("seo-check"), f=document.getElementById("pform"); if(!box||!f) return;
+  var name=(f.elements.name.value||"").trim(), desc=(f.elements.desc.value||"").trim(), meta=(f.elements.meta.value||"").trim(), dims=(f.elements.dims.value||"").trim();
+  var words=desc?desc.split(/\s+/).length:0, im=(edit&&edit.images)||[], missing=0;
+  im.forEach(function(_,i){ var e=document.getElementById("alt-"+i); if(!e||!e.value.trim()) missing++; });
+  function row(ok,t,hint){ return '<li class="'+(ok?'ok':'warn')+'"><strong>'+esc(t)+'.</strong> '+esc(hint)+'</li>'; }
+  box.innerHTML='<h3>Controllo per Google e per le ricerche con intelligenza artificiale</h3><ul>'+
+    row(name.length>=15&&name.length<=60,"Nome: "+name.length+" caratteri","Meglio tra 15 e 60, con tipo di oggetto e decoro.")+
+    row(words>=120,"Descrizione: "+words+" parole","Obiettivo almeno 120: racconta decoro, uso, misure, origine e cura.")+
+    row(meta.length===0||(meta.length>=70&&meta.length<=155),"Descrizione per Google: "+(meta.length||"automatica"),"Se la lasci vuota uso l’inizio della descrizione. Ideale tra 70 e 155 caratteri.")+
+    row(im.length>0,"Foto: "+im.length,"Almeno una foto vera, meglio tre o più.")+
+    row(im.length===0||missing===0,"Testo alternativo: "+(im.length-missing)+" su "+im.length,"Descrivi ogni foto: lo leggono Google e chi usa uno screen reader.")+
+    row(dims.length>0,"Misure","Indicale: sono la domanda più frequente.")+'</ul>';
 }
 function photosHtml(){
   var im=(edit&&edit.images)||[];
@@ -276,7 +306,7 @@ function aOrders(){
 function aSettings(){
   function f(k,l,t,extra){return '<label class="f">'+l+'<input type="'+(t||"text")+'" name="'+k+'" id="s-'+k+'" value="'+esc(settings[k])+'"'+(extra||"")+'></label>'}
   return '<form class="form" id="sform" style="max-width:720px"><p class="note">Questi dati compaiono nell’intestazione, nel piè di pagina e nei testi legali.</p>'+
-    f("brand","Nome del brand")+f("tagline","Frase sotto il logo")+
+    f("brand","Nome del brand")+f("tagline","Frase sotto il logo")+f("siteDesc","Descrizione del sito per Google (70-155 caratteri)")+
     '<label class="f">Storia del brand<textarea name="story" id="s-story">'+esc(settings.story)+'</textarea></label>'+
     '<div class="two">'+f("shippingCost","Costo spedizione (€)","number",' min="0" step="0.1"')+f("freeFrom","Spedizione gratis da (€)","number",' min="0" step="1"')+'</div>'+f("shippingDays","Tempi di consegna")+
     '<h3 style="margin-top:8px">Dati del venditore</h3>'+f("company","Ragione sociale")+'<div class="two">'+f("vat","Partita IVA")+f("phone","Telefono","tel")+'</div>'+f("address","Indirizzo")+f("rea","Registro Imprese (CCIAA e numero REA)")+'<label class="f">Regime fiscale<select name="regime" id="s-regime"><option value="forfettario"'+(settings.regime==="forfettario"?' selected':'')+'>Forfettario (senza IVA)</option><option value="ordinario"'+(settings.regime==="ordinario"?' selected':'')+'>Ordinario (prezzi con IVA)</option></select></label>'+f("email","Email di contatto","email")+f("pec","PEC","email")+f("instagram","Instagram (solo nome utente)")+
@@ -286,7 +316,9 @@ function aSettings(){
 /* ---------- render ---------- */
 function route(){ var h=location.hash.slice(1)||"home"; return h; }
 function render(){
-  if(ADMIN){ $("#app").innerHTML=vAdmin(); updateChrome(); return; }
+  if(ADMIN){ $("#app").innerHTML=vAdmin(); updateChrome(); seoUpdate(); return; }
+  if(PAGE==="cart"){ $("#app").innerHTML=vCart(); updateChrome(); return; }
+  if(PAGE==="static"){ updateChrome(); return; }
   var r=route(), html;
   if(r==="home") html=vHome();
   else if(r==="negozio") html=vShop();
@@ -300,14 +332,15 @@ function render(){
 function updateChrome(r){
   r=r||route();
   if(ADMIN){ document.title="Gestione \u00b7 "+settings.brand; var bn=$("#brandname"); if(bn) bn.textContent=settings.brand; return; }
+  if(PAGE!=="build"){ var cc=$("#cartcount"); if(cc) cc.textContent=cart.reduce(function(a,c){return a+c.qty},0); return; }
   var n=cart.reduce(function(a,c){return a+c.qty},0);
   $("#cartcount").textContent=n;
   $("#brandname").textContent=settings.brand;
   document.querySelectorAll("[data-nav]").forEach(function(a){ if(a.getAttribute("data-nav")===r) a.setAttribute("aria-current","page"); else a.removeAttribute("aria-current"); });
   document.title=settings.brand;
   var f='<div><h3>'+esc(settings.brand)+'</h3><p>'+esc(settings.tagline)+'.</p>'+(settings.company?'<p style="margin-top:8px">'+esc(settings.company)+(settings.vat?' · P.IVA '+esc(settings.vat):'')+(settings.rea?' · '+esc(settings.rea):'')+'</p>':'')+(settings.email?'<p>'+esc(settings.email)+'</p>':'')+(settings.instagram?'<p>Instagram: @'+esc(settings.instagram)+'</p>':'')+'</div>'+
-    '<div><h3>Negozio</h3><ul><li><a href="#negozio">Tutte le ceramiche</a></li><li><a href="#spedizioni">Spedizioni e resi</a></li><li><a href="#chi-siamo">Chi siamo</a></li></ul></div>'+
-    '<div><h3>Informazioni legali</h3><ul><li><a href="#condizioni">Condizioni di vendita</a></li><li><a href="#recesso">Diritto di recesso</a></li><li><a href="#privacy">Privacy</a></li><li><a href="#cookie">Cookie</a></li></ul></div>';
+    '<div><h3>Negozio</h3><ul><li><a href="negozio/">Tutte le ceramiche</a></li><li><a href="spedizioni/">Spedizioni e resi</a></li><li><a href="chi-siamo/">Chi siamo</a></li></ul></div>'+
+    '<div><h3>Informazioni legali</h3><ul><li><a href="condizioni/">Condizioni di vendita</a></li><li><a href="recesso/">Diritto di recesso</a></li><li><a href="privacy/">Privacy</a></li><li><a href="cookie/">Cookie</a></li></ul></div>';
   $("#foot").innerHTML=f;
 }
 
@@ -321,13 +354,13 @@ document.addEventListener("click",function(ev){
   var act=t.getAttribute("data-act"), v=t.getAttribute("data-v");
   if(act==="cat"){ filterCat=v; render(); }
   else if(act==="thumb"){ gallery=Number(v); render(); }
-  else if(act==="add"){ addToCart(v,1); location.hash="carrello"; }
+  else if(act==="add"){ addRaw(v,1,Number(t.getAttribute("data-stock"))||99); location.href="carrello/"; }
   else if(act==="inc"){ addToCart(v,1); render(); }
   else if(act==="dec"){ var c=cart.find(function(x){return x.id===v}); if(c){ c.qty--; if(c.qty<=0) cart=cart.filter(function(x){return x.id!==v}); saveCart(); } render(); }
   else if(act==="rm"){ cart=cart.filter(function(x){return x.id!==v}); saveCart(); render(); }
   else if(act==="tab"){ adminTab=v; flash=null; if(v!=="form") edit=null; render(); }
-  else if(act==="new"){ edit={id:null,images:[]}; adminTab="form"; flash=null; render(); }
-  else if(act==="edit"){ var p=products.find(function(x){return x.id===v}); if(p){ edit=Object.assign({},p,{images:(p.images||[]).slice()}); adminTab="form"; flash=null; render(); } }
+  else if(act==="new"){ edit={id:null,images:[],alts:[]}; adminTab="form"; flash=null; render(); }
+  else if(act==="edit"){ var p=products.find(function(x){return x.id===v}); if(p){ edit=Object.assign({},p,{images:(p.images||[]).slice(),alts:(p.alts||[]).slice()}); adminTab="form"; flash=null; render(); } }
   else if(act==="csv"){ downloadCsv(); }
   else if(act==="inv"){ var inp=$("#inv-"+v); if(inp) guard(async function(){ await chk(sb.from("shop_orders").update({invoice_number:inp.value.trim()}).eq("id",v)); await loadAll(); say("adm","Numero fattura salvato.",true); }); }
   else if(act==="logout"){ sb.auth.signOut(); }
@@ -336,8 +369,8 @@ document.addEventListener("click",function(ev){
   else if(act==="delx"){ confirmDel=null; render(); }
   else if(act==="del2"){ confirmDel=null; guard(async function(){ await chk(sb.from("shop_products").delete().eq("id",v)); await loadAll(); say("adm","Prodotto eliminato.",true); }); }
   else if(act==="vis"){ var q=products.find(function(x){return x.id===v}); if(q) guard(async function(){ await chk(sb.from("shop_products").update({visible:q.visible===false}).eq("id",v)); await loadAll(); say("adm",q.visible===false?"Prodotto visibile nel negozio.":"Prodotto nascosto.",true); }); }
-  else if(act==="seed"){ guard(async function(){ var now=Date.now(); var rows=DEMO.map(function(d,i){ return {name:d.name,category:d.category,type:d.type,price:d.price,stock:d.stock,descr:d.desc,dims:d.dims,c1:d.c1,c2:d.c2,visible:true,created_at:new Date(now-i*1000).toISOString()}; }); await chk(sb.from("shop_products").insert(rows)); await loadAll(); say("adm","Prodotti di esempio importati. Puoi modificarli o eliminarli.",true); }); }
-  else if(act==="rmphoto"){ if(edit){ edit.images.splice(Number(v),1); $("#photos").innerHTML=photosHtml(); } }
+  else if(act==="seed"){ guard(async function(){ var now=Date.now(); var rows=DEMO.map(function(d,i){ return {name:d.name,category:d.category,type:d.type,price:d.price,stock:d.stock,descr:d.desc,dims:d.dims,c1:d.c1,c2:d.c2,visible:true,slug:slugify(d.name),created_at:new Date(now-i*1000).toISOString()}; }); await chk(sb.from("shop_products").insert(rows)); await loadAll(); say("adm","Prodotti di esempio importati. Puoi modificarli o eliminarli.",true); }); }
+  else if(act==="rmphoto"){ if(edit){ syncAlts(); edit.images.splice(Number(v),1); edit.alts.splice(Number(v),1); $("#photos").innerHTML=photosHtml(); $("#alts").innerHTML=altsHtml(); seoUpdate(); } }
   else if(act==="evaso"){ var o=orders.find(function(x){return x.id===v}); if(o) guard(async function(){
     await chk(sb.from("shop_orders").update({status:o.status==="evaso"?"nuovo":"evaso"}).eq("id",v)); await loadAll(); }); }
 });
@@ -347,7 +380,7 @@ document.addEventListener("change",function(ev){
   (async function(){
     for(var i=0;i<files.length;i++){
       msg.textContent="Carico foto "+(i+1)+" di "+files.length+"…";
-      try{ var ext=(files[i].name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,""); var path="p/"+Date.now()+"-"+i+"."+ext; var up=await sb.storage.from("shop-images").upload(path,files[i],{contentType:files[i].type}); if(up.error) throw {code:up.error.message}; edit.images.push(path); $("#photos").innerHTML=photosHtml(); }
+      try{ var ext=(files[i].name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,""); var path="p/"+Date.now()+"-"+i+"."+ext; var up=await sb.storage.from("shop-images").upload(path,files[i],{contentType:files[i].type}); if(up.error) throw {code:up.error.message}; syncAlts(); edit.images.push(path); edit.alts.push(""); $("#photos").innerHTML=photosHtml(); $("#alts").innerHTML=altsHtml(); seoUpdate(); }
       catch(e){ msg.textContent="Foto non caricata ("+(e&&e.code||"errore")+"). Usa JPG, PNG o WebP sotto i 5 MB."; return; }
     }
     msg.textContent="Foto caricate. Ricordati di salvare il prodotto.";
@@ -409,9 +442,13 @@ document.addEventListener("submit",function(ev){
   else if(f.id==="pform"){
     var d=new FormData(f), p=edit||{};
     var data={name:String(d.get("name")).trim(),category:d.get("category"),type:d.get("type"),price:Number(d.get("price")),stock:Math.max(0,parseInt(d.get("stock"),10)||0),
-      descr:d.get("desc"),dims:d.get("dims"),material:d.get("material"),care:d.get("care"),c1:d.get("c1"),c2:d.get("c2"),visible:!!d.get("visible"),images:(p.images||[]).slice()};
+      descr:d.get("desc"),dims:d.get("dims"),material:d.get("material"),care:d.get("care"),c1:d.get("c1"),c2:d.get("c2"),visible:!!d.get("visible"),images:(p.images||[]).slice(),image_alts:(syncAlts(),(p.alts||[]).slice()),meta_desc:String(d.get("meta")||"").trim()};
     guard(async function(){
-      if(p.id) await chk(sb.from("shop_products").update(data).eq("id",p.id)); else await chk(sb.from("shop_products").insert(data)); await loadAll();
+      if(p.id){ await chk(sb.from("shop_products").update(data).eq("id",p.id)); }
+      else { var base=slugify(data.name)||"prodotto", done=false;
+        for(var k=0;k<6&&!done;k++){ try{ await chk(sb.from("shop_products").insert(Object.assign({slug:k?base+"-"+(k+1):base},data))); done=true; }catch(e){ if(String(e.code)!=="23505") throw e; } }
+        if(!done) throw {code:"slug"}; }
+      await loadAll();
       edit=null; adminTab="prodotti"; say("adm","Prodotto salvato.",true);
     });
   }
@@ -426,11 +463,12 @@ document.addEventListener("change",function(ev){
   if(t.name==="btype"){ btype=t.value; document.querySelectorAll("[data-bill=privato]").forEach(function(e){e.hidden=btype!=="privato"}); document.querySelectorAll("[data-bill=azienda]").forEach(function(e){e.hidden=btype!=="azienda"}); }
   else if(t.id==="c-same"){ document.querySelectorAll("[data-bill=addr]").forEach(function(e){e.hidden=t.checked}); }
 });
+document.addEventListener("input",function(ev){ if(ev.target.form&&ev.target.form.id==="pform") seoUpdate(); });
 window.addEventListener("hashchange",function(){ flash=null; gallery=0; render(); window.scrollTo(0,0); });
 
 /* ---------- dati: Supabase ---------- */
 async function chk(q){ var r=await q; if(r.error) throw {code:r.error.code||r.error.message}; return r.data; }
-function mapProduct(r){ return {id:r.id,name:r.name,category:r.category,type:r.type,price:Number(r.price),stock:r.stock,desc:r.descr,dims:r.dims,material:r.material,care:r.care,c1:r.c1,c2:r.c2,visible:r.visible,images:r.images||[],createdAt:Date.parse(r.created_at)||0}; }
+function mapProduct(r){ return {id:r.id,name:r.name,category:r.category,type:r.type,price:Number(r.price),stock:r.stock,desc:r.descr,dims:r.dims,material:r.material,care:r.care,c1:r.c1,c2:r.c2,visible:r.visible,images:r.images||[],alts:r.image_alts||[],slug:r.slug||"",meta:r.meta_desc||"",createdAt:Date.parse(r.created_at)||0}; }
 async function checkAdmin(){ isAdmin=false; if(sb&&session){ var r=await sb.rpc("is_shop_admin"); isAdmin=!r.error&&r.data===true; } }
 async function loadAll(){
   if(!sb) return;
@@ -445,8 +483,10 @@ async function loadAll(){
 }
 
 /* ---------- avvio: la pagina si vede subito, i dati arrivano dopo ---------- */
+if(window.__BUILD){ window.__api={LEGAL:LEGAL,DEMO:DEMO,DEFAULTS:DEFAULTS,vessel:vessel,setSettings:function(s){ settings=Object.assign({},DEFAULTS,s); }}; return; }
 render();
-if(window.supabase&&window.supabase.createClient){
+if(PAGE==="cart") setTimeout(function(){ if(!loaded){ loadFailed=true; render(); } },8000);
+if(PAGE!=="static"&&window.supabase&&window.supabase.createClient){
   sb=window.supabase.createClient(SUPA_URL,SUPA_KEY);
   sb.auth.onAuthStateChange(function(_ev,s){
     session=s;

@@ -4,7 +4,12 @@ Negozio online di ceramiche artigianali turche. Sito statico (GitHub Pages) con 
 
 ## File
 
-- `index.html`, `app.css`, `app.js`: tutto il sito, senza build.
+- `build.js` genera in `dist/` le pagine vere (home, negozio, categorie, prodotti, pagine legali) con titoli, dati strutturati, sitemap, robots e llms.txt, leggendo prodotti e impostazioni da Supabase. `audit.js` controlla il risultato (title, H1/H2, parole, alt, link). `seo.config.json`: indirizzo del sito e interruttore `indexable`.
+- `app.css`, `app.js`: stile e logica (carrello, admin). Il workflow `.github/workflows/pages.yml` ricostruisce il sito a ogni push, ogni 6 ore e a mano.
+
+## Pubblicazione
+
+Impostazioni del repo → Pages → Source: **GitHub Actions**. Per far comparire su Google il sito: compilare i dati del venditore, scegliere il nome, poi mettere `"indexable": true` in `seo.config.json`.
 - Database Supabase, tabelle con prefisso `shop_`: `shop_products`, `shop_settings`, `shop_orders`, `shop_admins`. Foto nel bucket `shop-images`.
 
 ## Gestione

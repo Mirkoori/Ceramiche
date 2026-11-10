@@ -1,0 +1,11 @@
+{
+  "name": "ceramiche",
+  "private": true,
+  "description": "Negozio di ceramiche turche: sito statico generato con dati da Supabase",
+  "scripts": {
+    "build": "node build.js",
+    "build:test": "SITE_URL=http://localhost:8080/ node build.js --data tests/fixture.json",
+    "audit": "node audit.js dist"
+  },
+  "devDependencies": { "jsdom": "^31.0.0" }
+}

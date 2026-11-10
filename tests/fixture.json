@@ -1,0 +1,11 @@
+{
+  "settings": {
+    "brand": "Bottega di Prova", "tagline": "Ceramiche artigianali dalla Turchia", "siteDesc": "Bottega di Prova: ceramiche turche artigianali dipinte a mano, scelte una per una. Ciotole, piatti, tazze e vasi con spedizione in Italia.",
+    "company": "Prova Ceramiche di Mario Rossi", "vat": "01234567890", "address": "Via Roma 1, 41121 Modena", "email": "info@esempio.it", "rea": "REA MO-123456", "pec": "prova@pec.esempio.it", "instagram": "bottegadiprova"
+  },
+  "products": [
+    {"id":"11111111-1111-1111-1111-111111111111","name":"Ciotola Iznik blu cobalto","category":"Ciotole","type":"ciotola","price":34,"stock":6,"descr":"Ciotola dipinta a mano con motivi floreali in blu cobalto su fondo bianco.\n\nAdatta a zuppe, frutta e insalate, oppure come centrotavola.","dims":"Ø 18 cm · h 8 cm","material":"Ceramica smaltata, dipinta a mano","care":"Lavaggio a mano consigliato","c1":"#1d3fae","c2":"#37b6c9","visible":true,"images":["p/1-a.jpg","p/1-b.jpg"],"image_alts":["Ciotola blu cobalto con decoro floreale vista dall'alto",""],"slug":"ciotola-iznik-blu-cobalto","meta_desc":"","created_at":"2026-11-09T10:00:00Z"},
+    {"id":"22222222-2222-2222-2222-222222222222","name":"Piatto da portata Kütahya","category":"Piatti","type":"piatto","price":58,"stock":0,"descr":"Grande piatto decorato con bordo geometrico turchese e blu.","dims":"Ø 32 cm","material":"Ceramica smaltata","care":"Lavaggio a mano consigliato","c1":"#0c8a87","c2":"#1d3fae","visible":true,"images":[],"image_alts":[],"slug":"piatto-da-portata-kutahya","meta_desc":"Piatto da portata turco dipinto a mano con bordo geometrico turchese e blu, 32 cm di diametro.","created_at":"2026-11-08T10:00:00Z"},
+    {"id":"33333333-3333-3333-3333-333333333333","name":"Tazza turchese","category":"Tazze","type":"tazza","price":18,"stock":10,"descr":"Tazza a smalto turchese lucido.","dims":"","material":"","care":"","c1":"#17b3ad","c2":"#e9f4f2","visible":true,"images":[],"image_alts":[],"slug":"tazza-turchese","meta_desc":"","created_at":"2026-11-07T10:00:00Z"}
+  ]
+}
