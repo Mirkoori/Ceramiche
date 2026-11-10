@@ -48,6 +48,7 @@ function picOf(p){
 }
 
 /* ---------- stato ---------- */
+var ADMIN=!!window.ADMIN_PAGE;
 var sb=null, session=null, isAdmin=false;
 var SUPA_URL="https://dbstgkxqnzbaxxxdgqum.supabase.co", SUPA_KEY="sb_publishable_8POu32i6i-kz4IZlbjOQHw_Nrofggk0";
 function U(path){ return SUPA_URL+"/storage/v1/object/public/shop-images/"+encodeURI(path); }
@@ -89,7 +90,7 @@ function card(p){
 }
 function demoBar(){
   if(!usingDemo()) return "";
-  return '<div class="demo-bar">Stai vedendo prodotti di esempio. '+(isAdmin?'Dalla sezione <a href="#admin">Gestione</a> puoi caricare i tuoi.':'Il catalogo reale sostituirà questi esempi.')+'</div>';
+  return '<div class="demo-bar">Stai vedendo prodotti di esempio. Il catalogo reale sostituirà questi esempi.</div>';
 }
 function vHome(){
   var l=shop().slice(0,4);
@@ -256,12 +257,12 @@ function aSettings(){
 /* ---------- render ---------- */
 function route(){ var h=location.hash.slice(1)||"home"; return h; }
 function render(){
+  if(ADMIN){ $("#app").innerHTML=vAdmin(); updateChrome(); return; }
   var r=route(), html;
   if(r==="home") html=vHome();
   else if(r==="negozio") html=vShop();
   else if(r.indexOf("prodotto-")===0) html=vProduct(r.slice(9));
   else if(r==="carrello") html=vCart();
-  else if(r==="admin") html=vAdmin();
   else if(LEGAL[r]) html=LEGAL[r]();
   else html=vHome();
   $("#app").innerHTML=html;
@@ -269,15 +270,15 @@ function render(){
 }
 function updateChrome(r){
   r=r||route();
+  if(ADMIN){ document.title="Gestione \u00b7 "+settings.brand; var bn=$("#brandname"); if(bn) bn.textContent=settings.brand; return; }
   var n=cart.reduce(function(a,c){return a+c.qty},0);
   $("#cartcount").textContent=n;
   $("#brandname").textContent=settings.brand;
-  $("#admlink").hidden=!isAdmin;
   document.querySelectorAll("[data-nav]").forEach(function(a){ if(a.getAttribute("data-nav")===r) a.setAttribute("aria-current","page"); else a.removeAttribute("aria-current"); });
   document.title=settings.brand;
   var f='<div><h3>'+esc(settings.brand)+'</h3><p>'+esc(settings.tagline)+'.</p>'+(settings.company?'<p style="margin-top:8px">'+esc(settings.company)+(settings.vat?' · P.IVA '+esc(settings.vat):'')+'</p>':'')+(settings.email?'<p>'+esc(settings.email)+'</p>':'')+(settings.instagram?'<p>Instagram: @'+esc(settings.instagram)+'</p>':'')+'</div>'+
     '<div><h3>Negozio</h3><ul><li><a href="#negozio">Tutte le ceramiche</a></li><li><a href="#spedizioni">Spedizioni e resi</a></li><li><a href="#chi-siamo">Chi siamo</a></li></ul></div>'+
-    '<div><h3>Informazioni legali</h3><ul><li><a href="#condizioni">Condizioni di vendita</a></li><li><a href="#recesso">Diritto di recesso</a></li><li><a href="#privacy">Privacy</a></li><li><a href="#cookie">Cookie</a></li><li><a href="#admin">Area riservata</a></li></ul></div>';
+    '<div><h3>Informazioni legali</h3><ul><li><a href="#condizioni">Condizioni di vendita</a></li><li><a href="#recesso">Diritto di recesso</a></li><li><a href="#privacy">Privacy</a></li><li><a href="#cookie">Cookie</a></li></ul></div>';
   $("#foot").innerHTML=f;
 }
 
@@ -298,7 +299,7 @@ document.addEventListener("click",function(ev){
   else if(act==="tab"){ adminTab=v; flash=null; if(v!=="form") edit=null; render(); }
   else if(act==="new"){ edit={id:null,images:[]}; adminTab="form"; flash=null; render(); }
   else if(act==="edit"){ var p=products.find(function(x){return x.id===v}); if(p){ edit=Object.assign({},p,{images:(p.images||[]).slice()}); adminTab="form"; flash=null; render(); } }
-  else if(act==="logout"){ sb.auth.signOut(); location.hash="home"; }
+  else if(act==="logout"){ sb.auth.signOut(); }
   else if(act==="cancel"){ edit=null; adminTab="prodotti"; render(); }
   else if(act==="del"){ confirmDel=v; render(); }
   else if(act==="delx"){ confirmDel=null; render(); }
@@ -376,7 +377,7 @@ async function loadAll(){
   if(!pr.error){ products=pr.data.map(mapProduct); loaded=true; }
   var st=await sb.from("shop_settings").select("data").eq("id",1).maybeSingle();
   if(!st.error&&st.data&&st.data.data) settings=Object.assign({},DEFAULTS,st.data.data);
-  if(isAdmin){
+  if(isAdmin&&ADMIN){
     var od=await sb.from("shop_orders").select("*").order("created_at",{ascending:false}).limit(200);
     if(!od.error) orders=od.data.map(function(o){return {id:o.id,items:o.items,subtotal:Number(o.subtotal),shipping:Number(o.shipping),total:Number(o.total),customer:o.customer,status:o.status,createdAt:Date.parse(o.created_at)||0}});
   }
