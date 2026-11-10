@@ -7,6 +7,30 @@ var esc=function(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){r
 var eur=function(n){return new Intl.NumberFormat("it-IT",{style:"currency",currency:"EUR"}).format(Number(n)||0)};
 var $=function(s,r){return (r||document).querySelector(s)};
 var CATS=["Ciotole","Piatti","Tazze","Vasi","Decorazioni"];
+function hx(h){ h=String(h).replace("#",""); return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; }
+function mixc(a,b,t){ var x=hx(a),y=hx(b); return "#"+[0,1,2].map(function(i){ return ("0"+Math.round(x[i]+(y[i]-x[i])*t).toString(16)).slice(-2); }).join(""); }
+function lumi(a){ var c=hx(a).map(function(v){ v/=255; return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4); }); return .2126*c[0]+.7152*c[1]+.0722*c[2]; }
+var FONTS={moderno:{d:'"Bricolage Grotesque","DM Sans",system-ui,sans-serif',url:""},classico:{d:'"Fraunces",Georgia,serif',url:"https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,800&display=swap"},pulito:{d:'"DM Sans",system-ui,sans-serif',url:""}};
+function okHex(v){ return /^#[0-9a-f]{6}$/i.test(String(v||"")); }
+function themeCss(s){
+  var a=okHex(s.accent)?s.accent:DEFAULTS.accent, g=okHex(s.accent2)?s.accent2:DEFAULTS.accent2, o="", l="", d="";
+  if(a.toLowerCase()!==DEFAULTS.accent){
+    l+="--cobalt:"+a+";--on-cobalt:"+(lumi(a)>.5?"#0b1230":"#ffffff")+";--panel:"+mixc(a,"#000000",.35)+";";
+    d+="--cobalt:"+mixc(a,"#ffffff",.45)+";--on-cobalt:#0b1230;--panel:"+mixc(a,"#000000",.55)+";";
+  }
+  if(g.toLowerCase()!==DEFAULTS.accent2){ l+="--glaze:"+g+";"; d+="--glaze:"+mixc(g,"#ffffff",.35)+";"; }
+  var f=FONTS[s.fontStyle]||FONTS.moderno; if(s.fontStyle&&s.fontStyle!=="moderno") l+="--font-display:"+f.d+";";
+  if(l) o+=":root{"+l+"}";
+  if(d) o+="@media (prefers-color-scheme:dark){:root:not([data-theme=light]){"+d+"}}:root[data-theme=dark]{"+d+"}";
+  var r=s.corners==="squadrati"?"2px":s.corners==="rotondi"?"26px":"";
+  if(r) o+=".btn,.card .pic,.hero-art,.hero-full,.chip,.note,.msg,.seo,.story,.values>div,input,textarea,select,.cart-box,.line .pic,.big,.big img,.more img{border-radius:"+r+" !important}";
+  return o;
+}
+function applyTheme(){
+  var el=document.getElementById("theme-css"); if(!el){ el=document.createElement("style"); el.id="theme-css"; document.head.appendChild(el); }
+  el.textContent=themeCss(settings);
+  var f=FONTS[settings.fontStyle]; if(f&&f.url&&!document.getElementById("theme-font")){ var lk=document.createElement("link"); lk.id="theme-font"; lk.rel="stylesheet"; lk.href=f.url; document.head.appendChild(lk); }
+}
 var TYPES=[["ciotola","Ciotola"],["piatto","Piatto"],["tazza","Tazza"],["vaso","Vaso"]];
 
 var DEFAULTS={
@@ -14,7 +38,11 @@ var DEFAULTS={
   tagline:"Ceramiche artigianali dalla Turchia",
   story:"Selezioniamo ceramiche dipinte a mano in piccoli laboratori turchi, dove la tradizione di Iznik e Kütahya è ancora un mestiere di famiglia. Ogni pezzo arriva da noi, lo guardiamo uno a uno e lo imballiamo con cura prima di spedirlo.",
   shippingCost:7.9, freeFrom:90, shippingDays:"3-5 giorni lavorativi",
-  company:"", vat:"", address:"", email:"", phone:"", instagram:"", rea:"", pec:"", regime:"forfettario", siteDesc:""
+  company:"", vat:"", address:"", email:"", phone:"", instagram:"", rea:"", pec:"", regime:"forfettario", siteDesc:"",
+  heroImage:"img/hero.jpg", heroAlt:"Piatto turco in ceramica dipinta a mano con tulipani rossi", heroLayout:"split", heroOverlay:55,
+  heroTitle:"Ceramiche turche dipinte a mano, scelte una per una", heroText:"Ciotole, piatti, tazze e vasi decorati a mano da artigiani in Turchia. Pezzi da usare ogni giorno, mai due identici.",
+  heroCta:"Scopri la collezione", heroCta2:"La nostra selezione",
+  accent:"#1d3fae", accent2:"#0c8a87", fontStyle:"moderno", corners:"morbidi", logo:"", announce:"", showValues:"1", showStory:"1", featured:4
 };
 var DEMO=[
   {id:"demo-1",name:"Ciotola Iznik cobalto",category:"Ciotole",type:"ciotola",price:34,stock:6,c1:"#1d3fae",c2:"#37b6c9",dims:"Ø 18 cm · h 8 cm",desc:"Ciotola dipinta a mano con motivi floreali in blu cobalto su fondo bianco. Adatta a zuppe, frutta o come centrotavola.",demo:true},
@@ -52,7 +80,7 @@ var ADMIN=!!window.ADMIN_PAGE, PAGE=window.ADMIN_PAGE?"admin":(window.PAGE||"sta
 var sb=null, session=null, isAdmin=false;
 var ADMIN_EMAIL="negozio-admin@example.com";
 var SUPA_URL="https://dbstgkxqnzbaxxxdgqum.supabase.co", SUPA_KEY="sb_publishable_8POu32i6i-kz4IZlbjOQHw_Nrofggk0";
-function U(path){ return SUPA_URL+"/storage/v1/object/public/shop-images/"+encodeURI(path); }
+function U(path){ if(/^(img\/|https?:)/.test(path)) return path; return SUPA_URL+"/storage/v1/object/public/shop-images/"+encodeURI(path); }
 var products=[], loaded=false, orders=[], settings=Object.assign({},DEFAULTS);
 var cart=[], filterCat="Tutti", flash=null, gallery=0, btype="privato", loadFailed=false;
 var adminTab="prodotti", edit=null, confirmDel=null, busy=false;
@@ -208,12 +236,12 @@ function vAdmin(){
   if(!session) return vLogin();
   if(session.user&&session.user.user_metadata&&session.user.user_metadata.must_change_password===true) return vChangePw();
   if(!isAdmin) return '<section class="sec"><div class="empty">Questo account non ha i permessi di gestione. <button class="btn ghost small" data-act="logout">Esci</button></div></section>';
-  var tabs=[["prodotti","Prodotti"],["form",edit&&edit.id?"Modifica":"Nuovo prodotto"],["ordini","Ordini"+(orders.filter(function(o){return o.status!=="evaso"}).length?" ("+orders.filter(function(o){return o.status!=="evaso"}).length+")":"")],["negozio","Negozio"]];
+  var tabs=[["prodotti","Prodotti"],["form",edit&&edit.id?"Modifica":"Nuovo prodotto"],["ordini","Ordini"+(orders.filter(function(o){return o.status!=="evaso"}).length?" ("+orders.filter(function(o){return o.status!=="evaso"}).length+")":"")],["aspetto","Aspetto"],["negozio","Negozio"]];
   var h='<section class="sec"><div class="sec-head"><div><p class="eyebrow">Area riservata</p><h2>Gestione negozio</h2></div><button class="btn ghost small" data-act="logout">Esci</button></div>'+
     '<div class="adm-tabs" role="tablist">'+tabs.map(function(t){return '<button role="tab" data-act="tab" data-v="'+t[0]+'" aria-selected="'+(adminTab===t[0])+'">'+t[1]+'</button>'}).join("")+'</div>';
   if(!sb) h+='<div class="msg err">Collegamento al database non riuscito: ricarica la pagina.</div>';
   if(flash&&flash.type==="adm") h+='<div class="msg '+(flash.ok?'ok':'err')+'" style="margin-bottom:14px">'+esc(flash.text)+'</div>';
-  if(adminTab==="prodotti") h+=aProducts(); else if(adminTab==="form") h+=aForm(); else if(adminTab==="ordini") h+=aOrders(); else h+=aSettings();
+  if(adminTab==="prodotti") h+=aProducts(); else if(adminTab==="form") h+=aForm(); else if(adminTab==="ordini") h+=aOrders(); else if(adminTab==="aspetto") h+=aAspect(); else h+=aSettings();
   return h+'</section>';
 }
 function aProducts(){
@@ -303,6 +331,31 @@ function aOrders(){
       '<div><button class="btn ghost small" data-act="evaso" data-v="'+esc(o.id)+'">'+(o.status==="evaso"?"Riapri":"Segna come evaso")+'</button></div></div>';
   }).join("");
 }
+function aAspect(){
+  function f(k,l,t,extra){return '<label class="f">'+l+'<input type="'+(t||"text")+'" name="'+k+'" id="a-'+k+'" value="'+esc(settings[k])+'"'+(extra||"")+'></label>'}
+  function sel(k,l,opts){return '<label class="f">'+l+'<select name="'+k+'" id="a-'+k+'">'+opts.map(function(o){return '<option value="'+o[0]+'"'+(String(settings[k])===o[0]?' selected':'')+'>'+o[1]+'</option>'}).join("")+'</select></label>'}
+  function col(k,l){return '<label class="f">'+l+'<span class="colrow"><input type="color" name="'+k+'" id="a-'+k+'" value="'+esc(okHex(settings[k])?settings[k]:DEFAULTS[k])+'"><code>'+esc(settings[k])+'</code></span></label>'}
+  function img(k,l,hint,defBtn){
+    var v=settings[k];
+    return '<div class="f"><span>'+l+'</span><div class="imgbox">'+(v?'<img src="'+esc(U(v))+'" alt="">':'<div class="imgnone">Nessuna immagine</div>')+'</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><label class="btn ghost small" style="cursor:pointer">Carica nuova<input type="file" accept="image/jpeg,image/png,image/webp" data-up="'+k+'" hidden></label>'+
+      (v?'<button class="btn ghost small" type="button" data-act="imgclear" data-v="'+k+'">Togli</button>':'')+(defBtn&&v!==DEFAULTS[k]?'<button class="btn ghost small" type="button" data-act="imgdef" data-v="'+k+'">Ripristina originale</button>':'')+'<span class="note" id="up-'+k+'" style="padding:0;background:none;border:0">'+hint+'</span></div></div>';
+  }
+  return '<div style="max-width:720px;display:grid;gap:18px"><p class="note">Le foto si cambiano subito. Gli altri campi si vedono sul sito dopo «Salva aspetto» e al prossimo aggiornamento delle pagine (circa 6 ore, oppure lancia «Run workflow» su GitHub).</p>'+
+    img("heroImage","Foto principale della home","Meglio orizzontale, almeno 1600 px. La riduco io prima di caricarla.",true)+
+    '<form class="form" id="aform">'+
+    f("heroAlt","Descrizione della foto principale (per Google e screen reader)")+
+    '<div class="two">'+sel("heroLayout","Disposizione",[["split","Testo a sinistra, foto a destra"],["full","Foto a tutto schermo con testo sopra"]])+f("heroOverlay","Scurimento foto (0-90, solo a tutto schermo)","number",' min="0" max="90" step="5"')+'</div>'+
+    f("heroTitle","Titolo della home")+'<label class="f">Testo sotto il titolo<textarea name="heroText" id="a-heroText" style="min-height:80px">'+esc(settings.heroText)+'</textarea></label>'+
+    '<div class="two">'+f("heroCta","Testo pulsante principale")+f("heroCta2","Testo secondo pulsante")+'</div>'+
+    f("announce","Banner in cima al sito (lascia vuoto per nasconderlo)",null,' maxlength="140" placeholder="es. Spedizione gratuita da 90 €"')+
+    '<h3 style="margin-top:6px">Colori e stile</h3><div class="two">'+col("accent","Colore principale (pulsanti, evidenze)")+col("accent2","Colore secondario")+'</div>'+
+    '<div class="two">'+sel("fontStyle","Carattere dei titoli",[["moderno","Moderno (Bricolage)"],["classico","Classico con grazie (Fraunces)"],["pulito","Pulito (DM Sans)"]])+sel("corners","Angoli",[["morbidi","Morbidi"],["squadrati","Squadrati"],["rotondi","Molto arrotondati"]])+'</div>'+
+    '<h3 style="margin-top:6px">Home</h3><div class="two">'+sel("showValues","Riquadri «Come scegliamo»",[["1","Mostra"],["0","Nascondi"]])+sel("showStory","Sezione «La nostra storia»",[["1","Mostra"],["0","Nascondi"]])+'</div>'+
+    f("featured","Prodotti in vetrina sulla home","number",' min="2" max="12" step="1"')+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" type="submit"'+(busy?' disabled':'')+'>Salva aspetto</button><button class="btn ghost" type="button" data-act="aspreset">Ripristina stile iniziale</button></div></form>'+
+    img("logo","Logo (facoltativo)","PNG o SVG con sfondo trasparente va benissimo. Sostituisce il rombo accanto al nome.",false)+'</div>';
+}
 function aSettings(){
   function f(k,l,t,extra){return '<label class="f">'+l+'<input type="'+(t||"text")+'" name="'+k+'" id="s-'+k+'" value="'+esc(settings[k])+'"'+(extra||"")+'></label>'}
   return '<form class="form" id="sform" style="max-width:720px"><p class="note">Questi dati compaiono nell’intestazione, nel piè di pagina e nei testi legali.</p>'+
@@ -316,7 +369,7 @@ function aSettings(){
 /* ---------- render ---------- */
 function route(){ var h=location.hash.slice(1)||"home"; return h; }
 function render(){
-  if(ADMIN){ $("#app").innerHTML=vAdmin(); updateChrome(); seoUpdate(); return; }
+  if(ADMIN){ $("#app").innerHTML=vAdmin(); updateChrome(); seoUpdate(); applyTheme(); return; }
   if(PAGE==="cart"){ $("#app").innerHTML=vCart(); updateChrome(); return; }
   if(PAGE==="static"){ updateChrome(); return; }
   var r=route(), html;
@@ -358,6 +411,8 @@ document.addEventListener("click",function(ev){
   else if(act==="inc"){ addToCart(v,1); render(); }
   else if(act==="dec"){ var c=cart.find(function(x){return x.id===v}); if(c){ c.qty--; if(c.qty<=0) cart=cart.filter(function(x){return x.id!==v}); saveCart(); } render(); }
   else if(act==="rm"){ cart=cart.filter(function(x){return x.id!==v}); saveCart(); render(); }
+  else if(act==="imgclear"||act==="imgdef"){ guard(async function(){ var n=Object.assign({},DEFAULTS,settings); n[v]=act==="imgdef"?DEFAULTS[v]:""; await saveSettings(n); say("adm","Immagine aggiornata.",true); }); }
+  else if(act==="aspreset"){ guard(async function(){ var n=Object.assign({},DEFAULTS,settings); ["heroLayout","heroOverlay","heroTitle","heroText","heroCta","heroCta2","accent","accent2","fontStyle","corners","showValues","showStory","featured","announce","heroAlt"].forEach(function(k){ n[k]=DEFAULTS[k]; }); await saveSettings(n); applyTheme(); say("adm","Stile iniziale ripristinato.",true); }); }
   else if(act==="tab"){ adminTab=v; flash=null; if(v!=="form") edit=null; render(); }
   else if(act==="new"){ edit={id:null,images:[],alts:[]}; adminTab="form"; flash=null; render(); }
   else if(act==="edit"){ var p=products.find(function(x){return x.id===v}); if(p){ edit=Object.assign({},p,{images:(p.images||[]).slice(),alts:(p.alts||[]).slice()}); adminTab="form"; flash=null; render(); } }
@@ -375,12 +430,26 @@ document.addEventListener("click",function(ev){
     await chk(sb.from("shop_orders").update({status:o.status==="evaso"?"nuovo":"evaso"}).eq("id",v)); await loadAll(); }); }
 });
 document.addEventListener("change",function(ev){
+  var k=ev.target.getAttribute&&ev.target.getAttribute("data-up");
+  if(k&&sb&&isAdmin){
+    var file=ev.target.files&&ev.target.files[0], msg=$("#up-"+k); if(!file) return;
+    (async function(){
+      try{
+        msg.textContent="Carico…";
+        var big=await shrink(file,k==="logo"?600:2000), ext=big===file?(file.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,""):"jpg";
+        var path="site/"+k+"-"+Date.now()+"."+ext;
+        var up=await sb.storage.from("shop-images").upload(path,big,{contentType:big.type||file.type}); if(up.error) throw {code:up.error.message};
+        var n=Object.assign({},DEFAULTS,settings); n[k]=path; await saveSettings(n); say("adm","Immagine aggiornata.",true); render();
+      }catch(e){ msg.textContent="Non caricata ("+(e&&e.code||"errore")+"). Usa JPG, PNG o WebP."; }
+    })();
+    return;
+  }
   if(ev.target.id!=="p-files"||!sb||!edit) return;
   var files=Array.prototype.slice.call(ev.target.files||[]), msg=$("#upmsg"); if(!files.length) return;
   (async function(){
     for(var i=0;i<files.length;i++){
       msg.textContent="Carico foto "+(i+1)+" di "+files.length+"…";
-      try{ var ext=(files[i].name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,""); var path="p/"+Date.now()+"-"+i+"."+ext; var up=await sb.storage.from("shop-images").upload(path,files[i],{contentType:files[i].type}); if(up.error) throw {code:up.error.message}; syncAlts(); edit.images.push(path); edit.alts.push(""); $("#photos").innerHTML=photosHtml(); $("#alts").innerHTML=altsHtml(); seoUpdate(); }
+      try{ var ext=(files[i].name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,""); var path="p/"+Date.now()+"-"+i+"."+ext; var big=await shrink(files[i],1600); path=path.replace(/\.[a-z0-9]+$/,big===files[i]?"."+ext:".jpg"); var up=await sb.storage.from("shop-images").upload(path,big,{contentType:big.type||files[i].type}); if(up.error) throw {code:up.error.message}; syncAlts(); edit.images.push(path); edit.alts.push(""); $("#photos").innerHTML=photosHtml(); $("#alts").innerHTML=altsHtml(); seoUpdate(); }
       catch(e){ msg.textContent="Foto non caricata ("+(e&&e.code||"errore")+"). Usa JPG, PNG o WebP sotto i 5 MB."; return; }
     }
     msg.textContent="Foto caricate. Ricordati di salvare il prodotto.";
@@ -453,9 +522,15 @@ document.addEventListener("submit",function(ev){
     });
   }
   else if(f.id==="sform"){
-    var s=new FormData(f), n=Object.assign({},DEFAULTS);
+    var s=new FormData(f), n=Object.assign({},DEFAULTS,settings);
     Object.keys(DEFAULTS).forEach(function(k){ var x=s.get(k); if(x!=null) n[k]=(typeof DEFAULTS[k]==="number")?Number(x):String(x).trim(); });
-    guard(async function(){ await chk(sb.from("shop_settings").upsert({id:1,data:n,updated_at:new Date().toISOString()})); settings=n; say("adm","Impostazioni salvate.",true); });
+    guard(async function(){ await saveSettings(n); say("adm","Impostazioni salvate.",true); });
+  }
+  else if(f.id==="aform"){
+    var s2=new FormData(f), n2=Object.assign({},DEFAULTS,settings);
+    ["heroAlt","heroLayout","heroOverlay","heroTitle","heroText","heroCta","heroCta2","announce","accent","accent2","fontStyle","corners","showValues","showStory","featured"].forEach(function(k){ var x=s2.get(k); if(x==null) return; n2[k]=(typeof DEFAULTS[k]==="number")?Math.max(0,Number(x)||0):String(x).trim(); });
+    n2.heroOverlay=Math.min(90,n2.heroOverlay); n2.featured=Math.min(12,Math.max(2,n2.featured||4));
+    guard(async function(){ await saveSettings(n2); applyTheme(); say("adm","Aspetto salvato. Le pagine pubbliche si aggiornano al prossimo ciclo di pubblicazione.",true); });
   }
 });
 document.addEventListener("change",function(ev){
@@ -463,10 +538,24 @@ document.addEventListener("change",function(ev){
   if(t.name==="btype"){ btype=t.value; document.querySelectorAll("[data-bill=privato]").forEach(function(e){e.hidden=btype!=="privato"}); document.querySelectorAll("[data-bill=azienda]").forEach(function(e){e.hidden=btype!=="azienda"}); }
   else if(t.id==="c-same"){ document.querySelectorAll("[data-bill=addr]").forEach(function(e){e.hidden=t.checked}); }
 });
-document.addEventListener("input",function(ev){ if(ev.target.form&&ev.target.form.id==="pform") seoUpdate(); });
+document.addEventListener("input",function(ev){
+  if(ev.target.form&&ev.target.form.id==="aform"&&ADMIN){ var t=ev.target; if(t.type==="color"){ settings[t.name]=t.value; var c=t.parentNode.querySelector("code"); if(c) c.textContent=t.value; applyTheme(); } return; } if(ev.target.form&&ev.target.form.id==="pform") seoUpdate(); });
+document.addEventListener("change",function(ev){ var t=ev.target; if(ADMIN&&t.form&&t.form.id==="aform"&&(t.name==="fontStyle"||t.name==="corners")){ settings[t.name]=t.value; applyTheme(); } });
 window.addEventListener("hashchange",function(){ flash=null; gallery=0; render(); window.scrollTo(0,0); });
 
 /* ---------- dati: Supabase ---------- */
+async function shrink(file,max){
+  try{
+    if(!/^image\/(jpeg|png|webp)$/.test(file.type)) return file;
+    var bmp=await createImageBitmap(file), k=Math.min(1,max/Math.max(bmp.width,bmp.height));
+    if(k===1&&file.size<600000) return file;
+    var cv=document.createElement("canvas"); cv.width=Math.round(bmp.width*k); cv.height=Math.round(bmp.height*k);
+    cv.getContext("2d").drawImage(bmp,0,0,cv.width,cv.height);
+    var blob=await new Promise(function(res){ cv.toBlob(res,"image/jpeg",.85); });
+    return blob&&blob.size<file.size?blob:file;
+  }catch(e){ return file; }
+}
+async function saveSettings(n){ await chk(sb.from("shop_settings").upsert({id:1,data:n,updated_at:new Date().toISOString()})); settings=n; }
 async function chk(q){ var r=await q; if(r.error) throw {code:r.error.code||r.error.message}; return r.data; }
 function mapProduct(r){ return {id:r.id,name:r.name,category:r.category,type:r.type,price:Number(r.price),stock:r.stock,desc:r.descr,dims:r.dims,material:r.material,care:r.care,c1:r.c1,c2:r.c2,visible:r.visible,images:r.images||[],alts:r.image_alts||[],slug:r.slug||"",meta:r.meta_desc||"",createdAt:Date.parse(r.created_at)||0}; }
 async function checkAdmin(){ isAdmin=false; if(sb&&session){ var r=await sb.rpc("is_shop_admin"); isAdmin=!r.error&&r.data===true; } }
@@ -483,7 +572,7 @@ async function loadAll(){
 }
 
 /* ---------- avvio: la pagina si vede subito, i dati arrivano dopo ---------- */
-if(window.__BUILD){ window.__api={LEGAL:LEGAL,DEMO:DEMO,DEFAULTS:DEFAULTS,vessel:vessel,setSettings:function(s){ settings=Object.assign({},DEFAULTS,s); }}; return; }
+if(window.__BUILD){ window.__api={LEGAL:LEGAL,DEMO:DEMO,DEFAULTS:DEFAULTS,vessel:vessel,themeCss:themeCss,FONTS:FONTS,okHex:okHex,setSettings:function(s){ settings=Object.assign({},DEFAULTS,s); }}; return; }
 render();
 if(PAGE==="cart") setTimeout(function(){ if(!loaded){ loadFailed=true; render(); } },8000);
 if(PAGE!=="static"&&window.supabase&&window.supabase.createClient){

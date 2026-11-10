@@ -50,7 +50,7 @@ async function loadData() {
   const s = await st.json();
   return { products: await pr.json(), settings: (s[0] && s[0].data) || {} };
 }
-const imgUrl = (p) => cfg.supabaseUrl + "/storage/v1/object/public/shop-images/" + encodeURI(p);
+const imgUrl = (p) => /^https?:/.test(p) ? p : /^img\//.test(p) ? SITE + p : cfg.supabaseUrl + "/storage/v1/object/public/shop-images/" + encodeURI(p);
 function mapRow(r) {
   return { id: r.id, name: r.name, category: r.category || "Ciotole", type: r.type, price: Number(r.price), stock: r.stock | 0,
     desc: (r.descr || "").trim(), dims: r.dims || "", material: r.material || "", care: r.care || "", c1: r.c1, c2: r.c2,
@@ -106,7 +106,7 @@ async function main() {
   const byCat = (c) => products.filter((p) => p.category === c);
   const productPath = (p) => "prodotti/" + p.slug + "/";
   const catPath = (c) => "negozio/" + catInfo(c).slug + "/";
-  const ogDefault = cfg.ogImage || (products.find((p) => p.images.length) ? imgUrl(products.find((p) => p.images.length).images[0]) : "");
+  const ogDefault = cfg.ogImage || (S.heroImage ? imgUrl(S.heroImage) : "") || (products.find((p) => p.images.length) ? imgUrl(products.find((p) => p.images.length).images[0]) : "");
 
   const ship = { cost: Number(S.shippingCost), free: Number(S.freeFrom), days: S.shippingDays };
   const org = { "@context": "https://schema.org", "@type": "Organization", "@id": SITE + "#organizzazione", name: brand, url: SITE,
@@ -118,6 +118,7 @@ async function main() {
   if (S.instagram) org.sameAs = ["https://www.instagram.com/" + S.instagram.replace(/^@/, "")];
   const website = { "@context": "https://schema.org", "@type": "WebSite", "@id": SITE + "#sito", name: brand, url: SITE, inLanguage: "it", publisher: { "@id": SITE + "#organizzazione" } };
 
+  const themeCss = api.themeCss(S);
   const pages = [];
   const faqLd = (qa) => ({ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: qa.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })) });
   const faqHtml = (qa, extra) => '<section class="sec faq" aria-labelledby="h-faq"><h2 id="h-faq">Domande frequenti</h2>' + qa.map(([q, a, html]) => "<h3>" + esc(q) + "</h3><p>" + (html || esc(a)) + "</p>").join("") + (extra || "") + "</section>";
@@ -150,8 +151,10 @@ async function main() {
       '<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 32 32\'%3E%3Crect x=\'7\' y=\'7\' width=\'18\' height=\'18\' fill=\'%231d3fae\' transform=\'rotate(45 16 16)\'/%3E%3C/svg%3E">' +
       '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
       '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap">' +
-      '<link rel="stylesheet" href="app.css">' + (o.ld || []).map(ld).join("") + "</head>";
-    const header = '<a class="skip" href="' + esc(BASE + o.path) + '#contenuto">Vai al contenuto</a><header class="top"><div class="top-in"><a class="brand" href="./"><i></i><span>' + esc(brand) + '</span></a>' +
+      '<link rel="stylesheet" href="app.css">' + ((api.FONTS[S.fontStyle] || {}).url ? '<link rel="stylesheet" href="' + esc(api.FONTS[S.fontStyle].url) + '">' : "") +
+      (themeCss ? "<style>" + themeCss + "</style>" : "") + (o.ld || []).map(ld).join("") + "</head>";
+    const header = '<a class="skip" href="' + esc(BASE + o.path) + '#contenuto">Vai al contenuto</a>' + (S.announce ? '<div class="announce" role="note">' + esc(S.announce) + "</div>" : "") +
+      '<header class="top"><div class="top-in"><a class="brand" href="./">' + (S.logo ? '<img class="logo" src="' + esc(imgUrl(S.logo)) + '" alt="" height="32">' : "<i></i>") + '<span>' + esc(brand) + '</span></a>' +
       '<nav class="nav" aria-label="Principale">' + nav("negozio/", "Negozio") + nav("chi-siamo/", "Chi siamo") + nav("spedizioni/", "Spedizioni") +
       '<a href="carrello/" class="cartbtn" aria-label="Carrello">Carrello <b id="cartcount">0</b></a></nav></div></header>';
     const footer = '<footer class="wrap foot"><div><p class="fh">' + esc(brand) + "</p><p>" + esc(S.tagline) + ".</p>" +
@@ -167,6 +170,17 @@ async function main() {
   }
 
   /* ---------- home ---------- */
+  function heroHtml() {
+    const t = esc(S.heroTitle), x = esc(S.heroText);
+    const btns = '<div class="cta-row"><a class="btn" href="negozio/">' + esc(S.heroCta) + '</a><a class="btn ghost" href="chi-siamo/">' + esc(S.heroCta2) + "</a></div>";
+    const copy = '<div class="hero-copy"><p class="eyebrow">' + esc(S.tagline) + "</p><h1>" + t + '</h1><p class="lead">' + x + "</p>" + btns + "</div>";
+    const alt = esc(S.heroAlt || "Ceramica turca dipinta a mano");
+    if (S.heroImage && S.heroLayout === "full")
+      return '<section class="hero-full" style="--ov:' + (Math.min(90, Math.max(0, Number(S.heroOverlay) || 0)) / 100) + '"><img class="hero-bg" src="' + esc(imgUrl(S.heroImage)) + '" alt="' + alt + '" width="1800" height="1200" fetchpriority="high">' + copy + "</section>";
+    if (S.heroImage)
+      return '<section class="hero">' + copy + '<div class="hero-art hero-photo"><img src="' + esc(imgUrl(S.heroImage)) + '" alt="' + alt + '" width="1800" height="1200" fetchpriority="high"></div></section>';
+    return '<section class="hero">' + copy + '<div class="hero-art" aria-hidden="true">' + api.vessel("vaso", "#e9a23b", "#fff4d6", 120) + api.vessel("ciotola", "#f4f6f5", "#1d3fae", 190) + api.vessel("tazza", "#17b3ad", "#ffffff", 110) + "</div></section>";
+  }
   const homeFaq = [
     ["Da dove arrivano le vostre ceramiche?", "Le ceramiche sono prodotte da artigiani in Turchia e selezionate da noi, un pezzo alla volta."],
     ["Le ceramiche sono dipinte a mano?", "Sì, ogni pezzo è decorato a mano: per questo può avere piccole differenze di colore e di smalto rispetto alle foto."],
@@ -176,17 +190,14 @@ async function main() {
   ];
   const homeDesc = S.siteDesc || cut(brand + ": ceramiche turche artigianali dipinte a mano, selezionate una per una. Ciotole, piatti, tazze e vasi con spedizione in Italia.", 155);
   shell({ path: "", title: fit(brand + " | " + S.tagline, brand + " | Ceramiche turche artigianali", brand), desc: homeDesc, priority: "1.0", ld: [org, website, faqLd(homeFaq)],
-    body: '<section class="hero"><div class="hero-copy"><p class="eyebrow">' + esc(S.tagline) + "</p><h1>Ceramiche turche dipinte a mano, scelte una per una</h1>" +
-      '<p class="lead">Ciotole, piatti, tazze e vasi decorati a mano da artigiani in Turchia. Pezzi da usare ogni giorno, mai due identici.</p>' +
-      '<div class="cta-row"><a class="btn" href="negozio/">Scopri la collezione</a><a class="btn ghost" href="chi-siamo/">La nostra selezione</a></div></div>' +
-      '<div class="hero-art" aria-hidden="true">' + api.vessel("vaso", "#e9a23b", "#fff4d6", 120) + api.vessel("ciotola", "#f4f6f5", "#1d3fae", 190) + api.vessel("tazza", "#17b3ad", "#ffffff", 110) + "</div></section>" +
-      '<section class="sec" aria-labelledby="h-come"><h2 id="h-come">Come scegliamo le nostre ceramiche</h2><div class="values">' +
+    body: heroHtml() +
+      (S.showValues === "0" ? "" : '<section class="sec" aria-labelledby="h-come"><h2 id="h-come">Come scegliamo le nostre ceramiche</h2><div class="values">' +
       "<div><h3>Selezionate in Turchia</h3><p>Lavoriamo con piccoli laboratori e scegliamo i pezzi di persona, guardandoli uno a uno.</p></div>" +
       "<div><h3>Dipinte a mano</h3><p>Ogni ceramica ha il suo disegno: piccole differenze di smalto sono parte del pezzo e non un difetto.</p></div>" +
-      "<div><h3>Imballate con cura</h3><p>Protezioni su misura per far arrivare tutto intero, anche i vasi più delicati.</p></div></div></section>" +
-      '<section class="sec" aria-labelledby="h-new"><div class="sec-head"><div><p class="eyebrow">In vetrina</p><h2 id="h-new">Le ultime arrivate</h2></div><a class="btn ghost small" href="negozio/">Vedi tutto</a></div>' + grid(products.slice(0, 4)) + "</section>" +
+      "<div><h3>Imballate con cura</h3><p>Protezioni su misura per far arrivare tutto intero, anche i vasi più delicati.</p></div></div></section>") +
+      '<section class="sec" aria-labelledby="h-new"><div class="sec-head"><div><p class="eyebrow">In vetrina</p><h2 id="h-new">Le ultime arrivate</h2></div><a class="btn ghost small" href="negozio/">Vedi tutto</a></div>' + grid(products.slice(0, Math.max(2, Number(S.featured) || 4))) + "</section>" +
       '<section class="sec" aria-labelledby="h-cat"><h2 id="h-cat">Sfoglia per categoria</h2><ul class="catnav">' + cats.map((c) => '<li><a href="' + catPath(c) + '">' + esc(catInfo(c).h1) + "</a></li>").join("") + "</ul></section>" +
-      '<section class="sec"><div class="story"><div><p class="eyebrow">La nostra storia</p><h2>Una selezione, non una fabbrica</h2></div><p>' + esc(S.story) + "</p></div></section>" + faqHtml(homeFaq) });
+      (S.showStory === "0" ? "" : '<section class="sec"><div class="story"><div><p class="eyebrow">La nostra storia</p><h2>Una selezione, non una fabbrica</h2></div><p>' + esc(S.story) + "</p></div></section>") + faqHtml(homeFaq) });
 
   /* ---------- negozio e categorie ---------- */
   const catNav = (cur) => '<ul class="catnav"><li><a href="negozio/"' + (cur === null ? ' aria-current="page"' : "") + ">Tutte</a></li>" + cats.map((c) => '<li><a href="' + catPath(c) + '"' + (cur === c ? ' aria-current="page"' : "") + ">" + esc(c) + " (" + byCat(c).length + ")</a></li>").join("") + "</ul>";
@@ -287,6 +298,7 @@ async function main() {
   fs.writeFileSync(path.join(OUT, "404.html"), pages[0].html.replace(/<title>[^<]*<\/title>/, "<title>Pagina non trovata | " + esc(brand) + "</title>").replace(/<meta name="robots" content="[^"]*">/, '<meta name="robots" content="noindex,nofollow">')
     .replace(/<main id="contenuto" class="wrap">[\s\S]*<\/main>/, '<main id="contenuto" class="wrap"><section class="sec"><h1>Pagina non trovata</h1><p style="margin:12px 0 20px;color:var(--muted)">L’indirizzo non esiste più o è stato scritto male.</p><a class="btn" href="negozio/">Vai al negozio</a></section></main>'));
   ["app.css", "app.js", "admin.html"].forEach((f) => fs.copyFileSync(path.join(ROOT, f), path.join(OUT, f)));
+  fs.cpSync(path.join(ROOT, "img"), path.join(OUT, "img"), { recursive: true });
   fs.writeFileSync(path.join(OUT, ".nojekyll"), "");
 
   const today = new Date().toISOString().slice(0, 10);
