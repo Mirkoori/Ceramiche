@@ -26,6 +26,21 @@ function themeCss(s){
   if(r) o+=".btn,.card .pic,.hero-art,.hero-full,.chip,.note,.msg,.seo,.story,.values>div,input,textarea,select,.cart-box,.line .pic,.big,.big img,.more img{border-radius:"+r+" !important}";
   return o;
 }
+function applyLive(){
+  applyTheme();
+  var q=function(s){ return document.querySelector(s); }, im=q("[data-hero-img]");
+  if(im&&settings.heroImage){ var u=U(settings.heroImage); if(im.getAttribute("src")!==u) im.setAttribute("src",u); if(settings.heroAlt) im.setAttribute("alt",settings.heroAlt); }
+  [["[data-hero-title]","heroTitle"],["[data-hero-text]","heroText"],["[data-hero-cta]","heroCta"],["[data-hero-cta2]","heroCta2"]].forEach(function(m){ var el=q(m[0]); if(el&&settings[m[1]]) el.textContent=settings[m[1]]; });
+  var an=q(".announce");
+  if(settings.announce){ if(!an){ an=document.createElement("div"); an.className="announce"; an.setAttribute("role","note"); var hd=q("header.top"); if(hd) hd.parentNode.insertBefore(an,hd); } if(an) an.textContent=settings.announce; }
+  else if(an) an.parentNode.removeChild(an);
+}
+async function liveSettings(){
+  try{
+    var r=await fetch(SUPA_URL+"/rest/v1/shop_settings?select=data&id=eq.1",{headers:{apikey:SUPA_KEY}}); if(!r.ok) return;
+    var j=await r.json(); if(j[0]&&j[0].data){ settings=Object.assign({},DEFAULTS,j[0].data); applyLive(); }
+  }catch(e){}
+}
 function applyTheme(){
   var el=document.getElementById("theme-css"); if(!el){ el=document.createElement("style"); el.id="theme-css"; document.head.appendChild(el); }
   el.textContent=themeCss(settings);
@@ -608,6 +623,7 @@ async function loadAll(){
 /* ---------- avvio: la pagina si vede subito, i dati arrivano dopo ---------- */
 if(window.__BUILD){ window.__api={LEGAL:LEGAL,DEMO:DEMO,DEFAULTS:DEFAULTS,vessel:vessel,themeCss:themeCss,FONTS:FONTS,okHex:okHex,setSettings:function(s){ settings=Object.assign({},DEFAULTS,s); }}; return; }
 render();
+if(!ADMIN&&PAGE!=="build") liveSettings();
 if(PAGE==="contact"){ try{ var qp=new URLSearchParams(location.search).get("prodotto"); if(qp){ var pf=document.getElementById("c-product"); if(pf) pf.value=qp; var ts=document.getElementById("c-topic"); if(ts) ts.value="Informazioni su un prodotto"; } }catch(e){} }
 if(PAGE==="cart") setTimeout(function(){ if(!loaded){ loadFailed=true; render(); } },8000);
 if(PAGE!=="static"&&window.supabase&&window.supabase.createClient){

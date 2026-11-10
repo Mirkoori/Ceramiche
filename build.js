@@ -158,7 +158,7 @@ async function main() {
       '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
       '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap">' +
       '<link rel="stylesheet" href="app.css">' + ((api.FONTS[S.fontStyle] || {}).url ? '<link rel="stylesheet" href="' + esc(api.FONTS[S.fontStyle].url) + '">' : "") +
-      (themeCss ? "<style>" + themeCss + "</style>" : "") + (o.ld || []).map(ld).join("") + "</head>";
+      (themeCss ? '<style id="theme-css">' + themeCss + "</style>" : "") + (o.ld || []).map(ld).join("") + "</head>";
     const header = '<a class="skip" href="' + esc(BASE + o.path) + '#contenuto">Vai al contenuto</a>' + (S.announce ? '<div class="announce" role="note">' + esc(S.announce) + "</div>" : "") +
       '<header class="top"><div class="top-in"><a class="brand" href="./">' + (S.logo ? '<img class="logo" src="' + esc(imgUrl(S.logo)) + '" alt="" height="32">' : "<i></i>") + '<span>' + esc(brand) + '</span></a>' +
       '<nav class="nav" aria-label="Principale">' + nav("negozio/", "Negozio") + nav("chi-siamo/", "Chi siamo") + nav("spedizioni/", "Spedizioni") + nav("contatti/", "Contatti") + etsyA("Etsy ↗") +
@@ -178,13 +178,13 @@ async function main() {
   /* ---------- home ---------- */
   function heroHtml() {
     const t = esc(S.heroTitle), x = esc(S.heroText);
-    const btns = '<div class="cta-row"><a class="btn" href="negozio/">' + esc(S.heroCta) + '</a><a class="btn ghost" href="chi-siamo/">' + esc(S.heroCta2) + "</a></div>";
-    const copy = '<div class="hero-copy"><p class="eyebrow">' + esc(S.tagline) + "</p><h1>" + t + '</h1><p class="lead">' + x + "</p>" + btns + "</div>";
+    const btns = '<div class="cta-row"><a class="btn" data-hero-cta href="negozio/">' + esc(S.heroCta) + '</a><a class="btn ghost" data-hero-cta2 href="chi-siamo/">' + esc(S.heroCta2) + "</a></div>";
+    const copy = '<div class="hero-copy"><p class="eyebrow">' + esc(S.tagline) + "</p><h1 data-hero-title>" + t + '</h1><p class="lead" data-hero-text>' + x + "</p>" + btns + "</div>";
     const alt = esc(S.heroAlt || "Ceramica turca dipinta a mano");
     if (S.heroImage && S.heroLayout === "full")
-      return '<section class="hero-full" style="--ov:' + (Math.min(90, Math.max(0, Number(S.heroOverlay) || 0)) / 100) + '"><img class="hero-bg" src="' + esc(imgUrl(S.heroImage)) + '" alt="' + alt + '" width="1800" height="1200" fetchpriority="high">' + copy + "</section>";
+      return '<section class="hero-full" style="--ov:' + (Math.min(90, Math.max(0, Number(S.heroOverlay) || 0)) / 100) + '"><img class="hero-bg" data-hero-img src="' + esc(imgUrl(S.heroImage)) + '" alt="' + alt + '" width="1800" height="1200" fetchpriority="high">' + copy + "</section>";
     if (S.heroImage)
-      return '<section class="hero">' + copy + '<div class="hero-art hero-photo"><img src="' + esc(imgUrl(S.heroImage)) + '" alt="' + alt + '" width="1800" height="1200" fetchpriority="high"></div></section>';
+      return '<section class="hero">' + copy + '<div class="hero-art hero-photo"><img data-hero-img src="' + esc(imgUrl(S.heroImage)) + '" alt="' + alt + '" width="1800" height="1200" fetchpriority="high"></div></section>';
     return '<section class="hero">' + copy + '<div class="hero-art" aria-hidden="true">' + api.vessel("vaso", "#e9a23b", "#fff4d6", 120) + api.vessel("ciotola", "#f4f6f5", "#1d3fae", 190) + api.vessel("tazza", "#17b3ad", "#ffffff", 110) + "</div></section>";
   }
   const homeFaq = [
