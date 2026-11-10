@@ -14,7 +14,7 @@ var DEFAULTS={
   tagline:"Ceramiche artigianali dalla Turchia",
   story:"Selezioniamo ceramiche dipinte a mano in piccoli laboratori turchi, dove la tradizione di Iznik e Kütahya è ancora un mestiere di famiglia. Ogni pezzo arriva da noi, lo guardiamo uno a uno e lo imballiamo con cura prima di spedirlo.",
   shippingCost:7.9, freeFrom:90, shippingDays:"3-5 giorni lavorativi",
-  company:"", vat:"", address:"", email:"", phone:"", instagram:""
+  company:"", vat:"", address:"", email:"", phone:"", instagram:"", rea:"", pec:"", regime:"forfettario"
 };
 var DEMO=[
   {id:"demo-1",name:"Ciotola Iznik cobalto",category:"Ciotole",type:"ciotola",price:34,stock:6,c1:"#1d3fae",c2:"#37b6c9",dims:"Ø 18 cm · h 8 cm",desc:"Ciotola dipinta a mano con motivi floreali in blu cobalto su fondo bianco. Adatta a zuppe, frutta o come centrotavola.",demo:true},
@@ -53,7 +53,7 @@ var sb=null, session=null, isAdmin=false;
 var SUPA_URL="https://dbstgkxqnzbaxxxdgqum.supabase.co", SUPA_KEY="sb_publishable_8POu32i6i-kz4IZlbjOQHw_Nrofggk0";
 function U(path){ return SUPA_URL+"/storage/v1/object/public/shop-images/"+encodeURI(path); }
 var products=[], loaded=false, orders=[], settings=Object.assign({},DEFAULTS);
-var cart=[], filterCat="Tutti", flash=null, gallery=0;
+var cart=[], filterCat="Tutti", flash=null, gallery=0, btype="privato";
 var adminTab="prodotti", edit=null, confirmDel=null, busy=false;
 try{ cart=JSON.parse(localStorage.getItem("cart-v1")||"[]")||[]; }catch(e){ cart=[]; }
 function saveCart(){ try{ localStorage.setItem("cart-v1",JSON.stringify(cart)); }catch(e){} }
@@ -134,16 +134,22 @@ function vCart(){
   var lines=L.map(function(l){return '<div class="line"><div class="pic">'+picOf(l.p)+'</div><div><h3>'+esc(l.p.name)+'</h3><small>'+eur(l.p.price)+' cad.</small><div style="margin-top:6px"><span class="qty"><button data-act="dec" data-v="'+esc(l.p.id)+'" aria-label="Meno">−</button><span>'+l.qty+'</span><button data-act="inc" data-v="'+esc(l.p.id)+'" aria-label="Più">+</button></span> <button class="btn ghost small" data-act="rm" data-v="'+esc(l.p.id)+'">Rimuovi</button></div></div><strong>'+eur(l.p.price*l.qty)+'</strong></div>'}).join("");
   var free=Number(settings.freeFrom), miss=free-t.sub;
   return '<div class="cart"><div><h1 style="font-size:2rem;margin-bottom:8px">Carrello</h1>'+lines+(miss>0&&t.sub>0?'<p class="note" style="margin-top:16px">Ti mancano '+eur(miss)+' per la spedizione gratuita.</p>':'')+'</div>'+
-    '<aside class="sum"><h2 style="font-size:1.3rem">Riepilogo</h2><div class="row"><span>Prodotti</span><span>'+eur(t.sub)+'</span></div><div class="row"><span>Spedizione</span><span>'+(t.ship?eur(t.ship):"Gratis")+'</span></div><div class="row total"><span>Totale</span><span>'+eur(t.total)+'</span></div>'+
+    '<aside class="sum"><h2 style="font-size:1.3rem">Riepilogo</h2><div class="row"><span>Prodotti</span><span>'+eur(t.sub)+'</span></div><div class="row"><span>Spedizione</span><span>'+(t.ship?eur(t.ship):"Gratis")+'</span></div><div class="row total"><span>Totale</span><span>'+eur(t.total)+'</span></div>'+(settings.regime==="forfettario"?'<p class="note">Operazione senza IVA (regime forfettario). Spediamo in Italia.</p>':'<p class="note">Spediamo in Italia.</p>')+
     '<form class="form" id="checkout" style="margin-top:8px"><p class="note warn">Checkout in bozza: nessun pagamento viene richiesto. L’ordine viene registrato come richiesta.</p>'+
     '<label class="f">Nome e cognome<input type="text" name="name" required autocomplete="name" id="c-name"></label>'+
     '<label class="f">Email<input type="email" name="email" required autocomplete="email" id="c-email"></label>'+
     '<label class="f">Indirizzo<input type="text" name="addr" required autocomplete="street-address" id="c-addr"></label>'+
     '<div class="two"><label class="f">CAP<input type="text" name="zip" required autocomplete="postal-code" id="c-zip"></label><label class="f">Città<input type="text" name="city" required autocomplete="address-level2" id="c-city"></label></div>'+
+    '<fieldset class="bill"><legend>Fatturazione</legend>'+
+    '<div class="seg" role="radiogroup" aria-label="Tipo di cliente"><label><input type="radio" name="btype" value="privato"'+(btype==="privato"?' checked':'')+'> Privato</label><label><input type="radio" name="btype" value="azienda"'+(btype==="azienda"?' checked':'')+'> Azienda o professionista</label></div>'+
+    '<div data-bill="privato"'+(btype==="privato"?'':' hidden')+'><label class="f">Codice fiscale<input type="text" name="cf" id="c-cf" maxlength="16" autocapitalize="characters" autocomplete="off"></label></div>'+
+    '<div data-bill="azienda" class="form"'+(btype==="azienda"?'':' hidden')+'><label class="f">Ragione sociale<input type="text" name="company" id="c-company" autocomplete="organization"></label><div class="two"><label class="f">Partita IVA<input type="text" name="vat" id="c-vat" maxlength="11" inputmode="numeric"></label><label class="f">Codice fiscale, se diverso<input type="text" name="cf2" id="c-cf2" maxlength="16" autocapitalize="characters"></label></div><div class="two"><label class="f">Codice SDI<input type="text" name="sdi" id="c-sdi" maxlength="7" autocapitalize="characters"></label><label class="f">oppure PEC<input type="email" name="pec" id="c-pec"></label></div></div>'+
+    '<label class="check"><input type="checkbox" name="same" id="c-same" checked><span>Indirizzo di fatturazione uguale a quello di spedizione</span></label>'+
+    '<div data-bill="addr" class="form" hidden><label class="f">Indirizzo di fatturazione<input type="text" name="baddr" id="c-baddr"></label><div class="two"><label class="f">CAP<input type="text" name="bzip" id="c-bzip"></label><label class="f">Città<input type="text" name="bcity" id="c-bcity"></label></div></div></fieldset>'+
     '<label class="f">Note<textarea name="note" id="c-note"></textarea></label>'+
     '<label class="check"><input type="checkbox" name="terms" required id="c-terms"><span>Ho letto le <a href="#condizioni">condizioni di vendita</a> e il <a href="#recesso">diritto di recesso</a>.</span></label>'+
     '<label class="check"><input type="checkbox" name="privacy" required id="c-priv"><span>Ho letto l’<a href="#privacy">informativa privacy</a>.</span></label>'+
-    (flash&&flash.type==="err"?'<div class="msg err">'+esc(flash.text)+'</div>':'')+
+    '<div data-err></div>'+
     '<button class="btn" type="submit"'+(busy?' disabled':'')+'>Invia richiesta d’ordine</button></form></aside></div>';
 }
 
@@ -155,17 +161,17 @@ function legalWrap(title,body){
 var LEGAL={
   privacy:function(){return legalWrap("Informativa privacy",
     '<h2>Titolare del trattamento</h2><p>'+S("company","ragione sociale")+', '+S("address","indirizzo")+'. Email: '+S("email","email")+'.</p>'+
-    '<h2>Dati che raccogliamo</h2><p>Nome, indirizzo di spedizione, email e telefono (se indicato) che inserisci nel modulo d’ordine, più i dati tecnici necessari al funzionamento del sito.</p>'+
+    '<h2>Dati che raccogliamo</h2><p>Nome, indirizzo di spedizione e di fatturazione, email, codice fiscale o partita IVA (con codice SDI o PEC per le aziende) che inserisci nel modulo d’ordine, più i dati tecnici necessari al funzionamento del sito.</p>'+
     '<h2>Perché li usiamo</h2><ul><li>Gestire l’ordine, la spedizione e l’assistenza (esecuzione del contratto).</li><li>Adempiere a obblighi fiscali e contabili (obbligo di legge).</li><li>Inviare newsletter solo se hai dato un consenso specifico (consenso).</li></ul>'+
     '<h2>Per quanto tempo</h2><p>I dati d’ordine sono conservati per il tempo richiesto dagli obblighi fiscali (di norma 10 anni). I dati per la newsletter fino alla revoca del consenso.</p>'+
     '<h2>A chi li comunichiamo</h2><p>Corrieri, fornitori di pagamento, fornitori di hosting e consulenti fiscali, nel limite di quanto necessario ai loro servizi.</p>'+
     '<h2>I tuoi diritti</h2><p>Puoi chiedere accesso, rettifica, cancellazione, limitazione, portabilità e opporti al trattamento scrivendo a '+S("email","email")+'. Hai diritto di reclamo al Garante per la protezione dei dati personali (garanteprivacy.it).</p>')},
   cookie:function(){return legalWrap("Cookie",'<p>Questo sito usa solo strumenti tecnici necessari al funzionamento, come la memoria del carrello sul tuo dispositivo. Non usiamo cookie di profilazione o di analisi che richiedano consenso.</p><p>Se in futuro aggiungeremo strumenti di statistica o pubblicità, ti chiederemo il consenso prima di attivarli.</p>')},
   condizioni:function(){return legalWrap("Condizioni di vendita",
-    '<h2>Venditore</h2><p>'+S("company","ragione sociale")+', P. IVA '+S("vat","partita IVA")+', '+S("address","indirizzo")+'. Contatti: '+S("email","email")+(settings.phone?', '+esc(settings.phone):'')+'.</p>'+
+    '<h2>Venditore</h2><p>'+S("company","ragione sociale")+', P. IVA '+S("vat","partita IVA")+', '+S("address","indirizzo")+'. Iscritto al Registro Imprese: '+S("rea","CCIAA e numero REA")+'. Contatti: '+S("email","email")+(settings.pec?', PEC '+esc(settings.pec):'')+(settings.phone?', '+esc(settings.phone):'')+'.</p>'+
     '<h2>Prodotti</h2><p>Vendiamo ceramiche artigianali. Trattandosi di pezzi dipinti a mano, colori, smalti e decori possono differire leggermente da quelli delle fotografie.</p>'+
-    '<h2>Prezzi</h2><p>I prezzi sono in euro e comprendono le imposte dove dovute. Le spese di spedizione sono indicate nel carrello prima dell’invio dell’ordine.</p>'+
-    '<h2>Ordine e pagamento</h2><p>Il contratto si conclude quando ricevi la nostra conferma d’ordine. I metodi di pagamento disponibili sono indicati in fase di acquisto.</p>'+
+    '<h2>Prezzi</h2><p>'+(settings.regime==="forfettario"?'I prezzi sono in euro. Operazione senza applicazione dell’IVA ai sensi dell’art. 1, commi 54-89, legge 190/2014 (regime forfettario).':'I prezzi sono in euro e comprendono l’IVA.')+' Le spese di spedizione sono indicate nel carrello prima dell’invio dell’ordine.</p>'+
+    '<h2>Fattura</h2><p>Per ogni ordine emettiamo fattura con i dati di fatturazione indicati nel modulo. La ricevi all’indirizzo email indicato; le aziende anche tramite SDI.</p><h2>Ordine e pagamento</h2><p>Il contratto si conclude quando ricevi la nostra conferma d’ordine. I metodi di pagamento disponibili sono indicati in fase di acquisto.</p>'+
     '<h2>Consegna</h2><p>Spediamo in '+esc(settings.shippingDays)+' dalla conferma dell’ordine, salvo diversa indicazione. Controlla il pacco alla consegna e segnala subito eventuali danni al corriere.</p>'+
     '<h2>Garanzia legale</h2><p>Se sei consumatore hai la garanzia legale di conformità di 2 anni prevista dal Codice del Consumo. Per usarla scrivi a '+S("email","email")+'.</p>'+
     '<h2>Recesso</h2><p>Hai 14 giorni per recedere, come spiegato nella pagina <a href="#recesso">Diritto di recesso</a>.</p>'+
@@ -233,14 +239,32 @@ function photosHtml(){
   var im=(edit&&edit.images)||[];
   return im.map(function(id,i){return '<div class="ph"><img src="'+esc(U(id))+'" alt=""><button type="button" data-act="rmphoto" data-v="'+i+'" aria-label="Rimuovi foto">×</button></div>'}).join("");
 }
+function billText(b){
+  b=b||{}; if(!b.type) return "non indicata";
+  var a=esc(b.addr||"")+", "+esc(b.zip||"")+" "+esc(b.city||"");
+  if(b.type==="azienda") return esc(b.company)+" · P.IVA "+esc(b.vat)+(b.cf?" · CF "+esc(b.cf):"")+" · "+(b.sdi?"SDI "+esc(b.sdi):"PEC "+esc(b.pec))+"<br>"+a;
+  return "Privato · CF "+esc(b.cf)+"<br>"+a;
+}
+function downloadCsv(){
+  var H=["Numero","Data","Stato","Cliente","Email","Indirizzo spedizione","CAP","Città","Tipo cliente","Ragione sociale","Codice fiscale","Partita IVA","SDI","PEC","Indirizzo fatturazione","Articoli","Prodotti (€)","Spedizione (€)","Totale (€)","N. fattura"];
+  function q(x){ x=String(x==null?"":x).replace(/"/g,'""'); return '"'+x+'"'; }
+  function n(x){ return String(Number(x||0).toFixed(2)).replace(".",","); }
+  var rows=orders.map(function(o){ var c=o.customer||{}, b=o.billing||{};
+    return [o.number,new Date(o.createdAt).toLocaleString("it-IT"),o.status,c.name,c.email,c.addr,c.zip,c.city,b.type||"",b.company||"",b.cf||"",b.vat||"",b.sdi||"",b.pec||"",[b.addr,b.zip,b.city].filter(Boolean).join(" "),(o.items||[]).map(function(i){return i.qty+" x "+i.name}).join(" | "),n(o.subtotal),n(o.shipping),n(o.total),o.invoiceNumber||""].map(q).join(";"); });
+  var blob=new Blob(["﻿"+[H.map(q).join(";")].concat(rows).join("\r\n")],{type:"text/csv;charset=utf-8"});
+  var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="ordini-"+new Date().toISOString().slice(0,10)+".csv";
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){URL.revokeObjectURL(a.href)},2000);
+}
 function aOrders(){
   if(!orders.length) return '<div class="empty">Nessun ordine ricevuto per ora.</div>';
-  return orders.map(function(o){
+  return '<div style="margin-bottom:14px"><button class="btn ghost small" data-act="csv">Scarica ordini (CSV)</button></div>'+orders.map(function(o){
     var d=new Date(o.createdAt||0).toLocaleString("it-IT",{dateStyle:"medium",timeStyle:"short"}), c=o.customer||{};
-    return '<div class="order"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><strong>'+esc(c.name)+'</strong><span class="pill '+(o.status==="evaso"?"":"new")+'">'+esc(o.status||"nuovo")+'</span></div>'+
+    return '<div class="order"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><strong>'+(o.number?'#'+esc(o.number)+' · ':'')+esc(c.name)+'</strong><span class="pill '+(o.status==="evaso"?"":"new")+'">'+esc(o.status||"nuovo")+'</span></div>'+
       '<small style="color:var(--muted)">'+d+' · '+esc(c.email)+'</small><div>'+(o.items||[]).map(function(i){return esc(i.qty)+' × '+esc(i.name)}).join("<br>")+'</div>'+
       '<div><strong>'+eur(o.total)+'</strong> <small style="color:var(--muted)">(spedizione '+eur(o.shipping)+')</small></div>'+
       '<div style="color:var(--muted);font-size:.9rem">'+esc(c.addr)+', '+esc(c.zip)+' '+esc(c.city)+(c.note?'<br>Note: '+esc(c.note):'')+'</div>'+
+      '<div style="font-size:.9rem"><strong>Fatturazione:</strong> '+billText(o.billing)+'</div>'+
+      '<div class="invrow"><label class="f" style="flex-direction:row;align-items:center;gap:8px">N. fattura <input type="text" id="inv-'+esc(o.id)+'" value="'+esc(o.invoiceNumber||"")+'" placeholder="es. 1/2026"></label><button class="btn ghost small" data-act="inv" data-v="'+esc(o.id)+'">Salva</button>'+(o.invoiceNumber?'<span class="pill">fatturato</span>':'<span class="pill new">da fatturare</span>')+'</div>'+
       '<div><button class="btn ghost small" data-act="evaso" data-v="'+esc(o.id)+'">'+(o.status==="evaso"?"Riapri":"Segna come evaso")+'</button></div></div>';
   }).join("");
 }
@@ -250,7 +274,7 @@ function aSettings(){
     f("brand","Nome del brand")+f("tagline","Frase sotto il logo")+
     '<label class="f">Storia del brand<textarea name="story" id="s-story">'+esc(settings.story)+'</textarea></label>'+
     '<div class="two">'+f("shippingCost","Costo spedizione (€)","number",' min="0" step="0.1"')+f("freeFrom","Spedizione gratis da (€)","number",' min="0" step="1"')+'</div>'+f("shippingDays","Tempi di consegna")+
-    '<h3 style="margin-top:8px">Dati del venditore</h3>'+f("company","Ragione sociale")+'<div class="two">'+f("vat","Partita IVA")+f("phone","Telefono","tel")+'</div>'+f("address","Indirizzo")+f("email","Email di contatto","email")+f("instagram","Instagram (solo nome utente)")+
+    '<h3 style="margin-top:8px">Dati del venditore</h3>'+f("company","Ragione sociale")+'<div class="two">'+f("vat","Partita IVA")+f("phone","Telefono","tel")+'</div>'+f("address","Indirizzo")+f("rea","Registro Imprese (CCIAA e numero REA)")+'<label class="f">Regime fiscale<select name="regime" id="s-regime"><option value="forfettario"'+(settings.regime==="forfettario"?' selected':'')+'>Forfettario (senza IVA)</option><option value="ordinario"'+(settings.regime==="ordinario"?' selected':'')+'>Ordinario (prezzi con IVA)</option></select></label>'+f("email","Email di contatto","email")+f("pec","PEC","email")+f("instagram","Instagram (solo nome utente)")+
     '<div><button class="btn" type="submit"'+(busy?' disabled':'')+'>Salva impostazioni</button></div></form>';
 }
 
@@ -276,7 +300,7 @@ function updateChrome(r){
   $("#brandname").textContent=settings.brand;
   document.querySelectorAll("[data-nav]").forEach(function(a){ if(a.getAttribute("data-nav")===r) a.setAttribute("aria-current","page"); else a.removeAttribute("aria-current"); });
   document.title=settings.brand;
-  var f='<div><h3>'+esc(settings.brand)+'</h3><p>'+esc(settings.tagline)+'.</p>'+(settings.company?'<p style="margin-top:8px">'+esc(settings.company)+(settings.vat?' · P.IVA '+esc(settings.vat):'')+'</p>':'')+(settings.email?'<p>'+esc(settings.email)+'</p>':'')+(settings.instagram?'<p>Instagram: @'+esc(settings.instagram)+'</p>':'')+'</div>'+
+  var f='<div><h3>'+esc(settings.brand)+'</h3><p>'+esc(settings.tagline)+'.</p>'+(settings.company?'<p style="margin-top:8px">'+esc(settings.company)+(settings.vat?' · P.IVA '+esc(settings.vat):'')+(settings.rea?' · '+esc(settings.rea):'')+'</p>':'')+(settings.email?'<p>'+esc(settings.email)+'</p>':'')+(settings.instagram?'<p>Instagram: @'+esc(settings.instagram)+'</p>':'')+'</div>'+
     '<div><h3>Negozio</h3><ul><li><a href="#negozio">Tutte le ceramiche</a></li><li><a href="#spedizioni">Spedizioni e resi</a></li><li><a href="#chi-siamo">Chi siamo</a></li></ul></div>'+
     '<div><h3>Informazioni legali</h3><ul><li><a href="#condizioni">Condizioni di vendita</a></li><li><a href="#recesso">Diritto di recesso</a></li><li><a href="#privacy">Privacy</a></li><li><a href="#cookie">Cookie</a></li></ul></div>';
   $("#foot").innerHTML=f;
@@ -299,6 +323,8 @@ document.addEventListener("click",function(ev){
   else if(act==="tab"){ adminTab=v; flash=null; if(v!=="form") edit=null; render(); }
   else if(act==="new"){ edit={id:null,images:[]}; adminTab="form"; flash=null; render(); }
   else if(act==="edit"){ var p=products.find(function(x){return x.id===v}); if(p){ edit=Object.assign({},p,{images:(p.images||[]).slice()}); adminTab="form"; flash=null; render(); } }
+  else if(act==="csv"){ downloadCsv(); }
+  else if(act==="inv"){ var inp=$("#inv-"+v); if(inp) guard(async function(){ await chk(sb.from("shop_orders").update({invoice_number:inp.value.trim()}).eq("id",v)); await loadAll(); say("adm","Numero fattura salvato.",true); }); }
   else if(act==="logout"){ sb.auth.signOut(); }
   else if(act==="cancel"){ edit=null; adminTab="prodotti"; render(); }
   else if(act==="del"){ confirmDel=v; render(); }
@@ -329,14 +355,27 @@ document.addEventListener("submit",function(ev){
     var L=cartLines(), t=totals(), fd=new FormData(f);
     var order={items:L.map(function(l){return {id:l.p.id,name:l.p.name,price:l.p.price,qty:l.qty}}),subtotal:t.sub,shipping:t.ship,total:t.total,
       customer:{name:fd.get("name"),email:fd.get("email"),addr:fd.get("addr"),zip:fd.get("zip"),city:fd.get("city"),note:fd.get("note")||""},status:"nuovo",createdAt:Date.now()};
-    flash=null; busy=true; render();
+    var bt=fd.get("btype")==="azienda"?"azienda":"privato", same=!!fd.get("same"), box=f.querySelector("[data-err]"), btn=f.querySelector("button[type=submit]");
+    function fail(m){ box.innerHTML='<div class="msg err">'+esc(m)+'</div>'; btn.disabled=false; box.scrollIntoView({block:"center"}); }
+    var cf=String(bt==="azienda"?(fd.get("cf2")||""):(fd.get("cf")||"")).trim().toUpperCase(), vat=String(fd.get("vat")||"").replace(/\s/g,""), sdi=String(fd.get("sdi")||"").trim().toUpperCase(), pec=String(fd.get("pec")||"").trim(), company=String(fd.get("company")||"").trim();
+    if(bt==="privato"&&!/^[A-Z0-9]{16}$/.test(cf)) return fail("Inserisci un codice fiscale di 16 caratteri.");
+    if(bt==="azienda"){
+      if(!company) return fail("Inserisci la ragione sociale.");
+      if(!/^\d{11}$/.test(vat)) return fail("La partita IVA ha 11 cifre.");
+      if(!/^[A-Z0-9]{7}$/.test(sdi)&&!pec) return fail("Indica il codice SDI di 7 caratteri oppure la PEC.");
+      if(cf&&!/^([A-Z0-9]{16}|\d{11})$/.test(cf)) return fail("Il codice fiscale non è valido.");
+    }
+    var billing={type:bt,company:bt==="azienda"?company:"",cf:cf,vat:bt==="azienda"?vat:"",sdi:bt==="azienda"?sdi:"",pec:bt==="azienda"?pec:"",sameAddress:same,
+      addr:same?fd.get("addr"):fd.get("baddr"),zip:same?fd.get("zip"):fd.get("bzip"),city:same?fd.get("city"):fd.get("bcity")};
+    if(!same&&(!billing.addr||!billing.zip||!billing.city)) return fail("Completa l’indirizzo di fatturazione.");
+    btn.disabled=true; box.innerHTML="";
     (async function(){
       try{
         if(!sb) throw {code:"no_db"};
-        await chk(sb.from("shop_orders").insert({items:order.items,subtotal:order.subtotal,shipping:order.shipping,total:order.total,customer:order.customer}));
+        await chk(sb.from("shop_orders").insert({items:order.items,subtotal:order.subtotal,shipping:order.shipping,total:order.total,customer:order.customer,billing:billing}));
         cart=[]; saveCart(); say("order","Abbiamo registrato la tua richiesta. In questa bozza non è stato addebitato nulla.");
-      }catch(e){ say("err","Non siamo riusciti a registrare la richiesta. Riprova tra poco."); }
-      busy=false; render();
+        render();
+      }catch(e){ fail("Non siamo riusciti a registrare la richiesta. Riprova tra poco."); }
     })();
   }
   else if(f.id==="login"){
@@ -365,6 +404,11 @@ document.addEventListener("submit",function(ev){
     guard(async function(){ await chk(sb.from("shop_settings").upsert({id:1,data:n,updated_at:new Date().toISOString()})); settings=n; say("adm","Impostazioni salvate.",true); });
   }
 });
+document.addEventListener("change",function(ev){
+  var t=ev.target;
+  if(t.name==="btype"){ btype=t.value; document.querySelectorAll("[data-bill=privato]").forEach(function(e){e.hidden=btype!=="privato"}); document.querySelectorAll("[data-bill=azienda]").forEach(function(e){e.hidden=btype!=="azienda"}); }
+  else if(t.id==="c-same"){ document.querySelectorAll("[data-bill=addr]").forEach(function(e){e.hidden=t.checked}); }
+});
 window.addEventListener("hashchange",function(){ flash=null; gallery=0; render(); window.scrollTo(0,0); });
 
 /* ---------- dati: Supabase ---------- */
@@ -379,7 +423,7 @@ async function loadAll(){
   if(!st.error&&st.data&&st.data.data) settings=Object.assign({},DEFAULTS,st.data.data);
   if(isAdmin&&ADMIN){
     var od=await sb.from("shop_orders").select("*").order("created_at",{ascending:false}).limit(200);
-    if(!od.error) orders=od.data.map(function(o){return {id:o.id,items:o.items,subtotal:Number(o.subtotal),shipping:Number(o.shipping),total:Number(o.total),customer:o.customer,status:o.status,createdAt:Date.parse(o.created_at)||0}});
+    if(!od.error) orders=od.data.map(function(o){return {id:o.id,items:o.items,subtotal:Number(o.subtotal),shipping:Number(o.shipping),total:Number(o.total),customer:o.customer,billing:o.billing||{},number:o.order_number,invoiceNumber:o.invoice_number||"",status:o.status,createdAt:Date.parse(o.created_at)||0}});
   }
 }
 
