@@ -115,7 +115,13 @@ async function main() {
   if (S.phone) org.telephone = S.phone;
   if (S.address) org.address = { "@type": "PostalAddress", streetAddress: S.address, addressCountry: "IT" };
   if (S.vat) org.vatID = /^IT/i.test(S.vat) ? S.vat : "IT" + S.vat;
-  if (S.instagram) org.sameAs = ["https://www.instagram.com/" + S.instagram.replace(/^@/, "")];
+  const sameAs = [];
+  if (S.instagram) sameAs.push("https://www.instagram.com/" + S.instagram.replace(/^@/, ""));
+  const etsy = /^https:\/\/([a-z0-9-]+\.)?etsy\.com\//i.test(S.etsy || "") ? S.etsy : "";
+  if (etsy) sameAs.push(etsy);
+  if (sameAs.length) org.sameAs = sameAs;
+  if (S.etsy && !etsy) warnings.push("Il link Etsy non sembra un indirizzo etsy.com: non lo uso.");
+  const etsyA = (label, cls) => etsy ? '<a ' + (cls ? 'class="' + cls + '" ' : "") + 'href="' + esc(etsy) + '" target="_blank" rel="noopener">' + label + "</a>" : "";
   const website = { "@context": "https://schema.org", "@type": "WebSite", "@id": SITE + "#sito", name: brand, url: SITE, inLanguage: "it", publisher: { "@id": SITE + "#organizzazione" } };
 
   const themeCss = api.themeCss(S);
@@ -155,17 +161,17 @@ async function main() {
       (themeCss ? "<style>" + themeCss + "</style>" : "") + (o.ld || []).map(ld).join("") + "</head>";
     const header = '<a class="skip" href="' + esc(BASE + o.path) + '#contenuto">Vai al contenuto</a>' + (S.announce ? '<div class="announce" role="note">' + esc(S.announce) + "</div>" : "") +
       '<header class="top"><div class="top-in"><a class="brand" href="./">' + (S.logo ? '<img class="logo" src="' + esc(imgUrl(S.logo)) + '" alt="" height="32">' : "<i></i>") + '<span>' + esc(brand) + '</span></a>' +
-      '<nav class="nav" aria-label="Principale">' + nav("negozio/", "Negozio") + nav("chi-siamo/", "Chi siamo") + nav("spedizioni/", "Spedizioni") +
+      '<nav class="nav" aria-label="Principale">' + nav("negozio/", "Negozio") + nav("chi-siamo/", "Chi siamo") + nav("spedizioni/", "Spedizioni") + nav("contatti/", "Contatti") + etsyA("Etsy ↗") +
       '<a href="carrello/" class="cartbtn" aria-label="Carrello">Carrello <b id="cartcount">0</b></a></nav></div></header>';
     const footer = '<footer class="wrap foot"><div><p class="fh">' + esc(brand) + "</p><p>" + esc(S.tagline) + ".</p>" +
       (S.company ? '<p style="margin-top:8px">' + esc(S.company) + (S.vat ? " · P.IVA " + esc(S.vat) : "") + (S.rea ? " · " + esc(S.rea) : "") + "</p>" : "") +
       (S.address ? "<p>" + esc(S.address) + "</p>" : "") + (S.email ? "<p>" + esc(S.email) + "</p>" : "") + (S.pec ? "<p>PEC: " + esc(S.pec) + "</p>" : "") +
       (S.instagram ? "<p>Instagram: @" + esc(S.instagram.replace(/^@/, "")) + "</p>" : "") + "</div>" +
-      '<div><p class="fh">Negozio</p><ul><li><a href="negozio/">Tutte le ceramiche</a></li>' + cats.map((c) => '<li><a href="' + catPath(c) + '">' + esc(c) + "</a></li>").join("") + '<li><a href="spedizioni/">Spedizioni e resi</a></li><li><a href="chi-siamo/">Chi siamo</a></li></ul></div>' +
+      '<div><p class="fh">Negozio</p><ul><li><a href="negozio/">Tutte le ceramiche</a></li>' + cats.map((c) => '<li><a href="' + catPath(c) + '">' + esc(c) + "</a></li>").join("") + '<li><a href="spedizioni/">Spedizioni e resi</a></li><li><a href="chi-siamo/">Chi siamo</a></li><li><a href="contatti/">Contatti</a></li>' + (etsy ? "<li>" + etsyA("Il nostro negozio su Etsy ↗") + "</li>" : "") + '</ul></div>' +
       '<div><p class="fh">Informazioni legali</p><ul><li><a href="condizioni/">Condizioni di vendita</a></li><li><a href="recesso/">Diritto di recesso</a></li><li><a href="privacy/">Privacy</a></li><li><a href="cookie/">Cookie</a></li></ul></div></footer>';
     const html = head + '<body class="' + (o.cart ? "p-cart" : "p-static") + '">' + header + '<main id="contenuto" class="wrap">' + o.body + "</main>" + footer +
-      '<script>window.PAGE="' + (o.cart ? "cart" : "static") + '";</script>' +
-      (o.cart ? '<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>' : "") + '<script src="app.js" defer></script></body></html>\n';
+      '<script>window.PAGE="' + (o.mode || "static") + '";</script>' +
+      (o.mode ? '<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>' : "") + '<script src="app.js" defer></script></body></html>\n';
     pages.push({ path: o.path, file: o.path ? o.path + "index.html" : "index.html", html, noindex: !!o.noindex || !indexable, lastmod: o.lastmod, priority: o.priority });
   }
 
@@ -252,6 +258,7 @@ async function main() {
         '<article class="pdp"><div class="gal"><div class="big">' + picHtml(p, true) + "</div>" + more + '</div><div class="pdp-info"><h1>' + esc(p.name) + '</h1><p class="price">' + eur(p.price) + "</p>" +
         "<p>" + (inStock ? "Disponibile" : "Esaurito") + " · " + esc(shipText) + "</p>" +
         '<div style="display:flex;gap:12px;flex-wrap:wrap"><button class="btn" data-act="add" data-v="' + esc(p.id) + '" data-stock="' + p.stock + '"' + (inStock ? "" : " disabled") + ">" + (inStock ? "Aggiungi al carrello" : "Esaurito") + '</button><a class="btn ghost" href="spedizioni/">Spedizioni e resi</a></div>' +
+        '<p><a href="contatti/?prodotto=' + encodeURIComponent(p.name) + '">Hai una domanda su questo pezzo? Scrivici</a>' + (etsy ? " · " + etsyA("Vedi il nostro negozio su Etsy ↗") : "") + "</p>" +
         '<div class="note">Pezzo artigianale: piccole variazioni di colore e di smalto sono normali e lo rendono unico.</div></div></article>' +
         '<section class="sec prose" aria-labelledby="h-desc"><h2 id="h-desc">Descrizione</h2>' + (p.desc ? paragraphs(p.desc) : "<p>" + esc(p.name) + ", " + esc(ci.noun) + " in ceramica turca dipinta a mano.</p>") + "</section>" +
         '<section class="sec" aria-labelledby="h-car"><h2 id="h-car">Caratteristiche</h2><dl class="specs">' + specs.map((r) => "<dt>" + r[0] + "</dt><dd>" + esc(r[1]) + "</dd>").join("") + "</dl></section>" +
@@ -277,10 +284,31 @@ async function main() {
 
   const about = '<article class="legal"><h1>Chi siamo</h1><h2>La nostra selezione</h2><p>' + esc(S.story) + "</p>" +
     "<h2>Come lavoriamo</h2><p>Scegliamo le ceramiche una per una, le guardiamo da vicino e le imballiamo con cura prima di spedirle. Ogni pezzo è dipinto a mano: per questo smalti e decori possono avere piccole differenze rispetto alle foto, e questo fa parte del loro valore.</p>" +
-    '<h2>Contatti</h2><p>' + (S.email ? "Scrivici a " + esc(S.email) + ". " : "") + 'Trovi le condizioni di acquisto nelle pagine <a href="condizioni/">Condizioni di vendita</a> e <a href="spedizioni/">Spedizioni e resi</a>.</p><p><a class="btn" href="negozio/">Vai al negozio</a></p></article>';
+    '<h2>Contatti</h2><p>' + (S.email ? "Scrivici a " + esc(S.email) + ". " : "") + 'Il modulo è nella pagina <a href="contatti/">Contatti</a>. Trovi le condizioni di acquisto nelle pagine <a href="condizioni/">Condizioni di vendita</a> e <a href="spedizioni/">Spedizioni e resi</a>.</p><p><a class="btn" href="negozio/">Vai al negozio</a></p></article>';
   shell({ path: "chi-siamo/", title: fit("Chi siamo | " + brand, "Chi siamo"), priority: "0.5", ld: [crumbLd([["Home", ""], ["Chi siamo", "chi-siamo/"]]), org],
     desc: cut(brand + ": selezioniamo ceramiche turche dipinte a mano, le guardiamo una per una e le imballiamo con cura. Scopri come lavoriamo.", 155),
     body: crumbHtml([["Home", ""], ["Chi siamo", "chi-siamo/"]]) + about });
+
+  const contactBody = '<article class="legal"><h1>Contatti</h1>' +
+    "<p>Hai una domanda su una ceramica, su un ordine o su una spedizione? Scrivici dal modulo: rispondiamo appena possibile, di solito entro uno o due giorni lavorativi." + (etsy ? " Puoi anche trovarci su Etsy." : "") + "</p>" +
+    '<h2>Scrivici un messaggio</h2><form class="form" id="contact" novalidate style="max-width:620px">' +
+    '<div class="two"><label class="f">Nome<input type="text" name="name" required maxlength="120" autocomplete="name"></label><label class="f">Email<input type="email" name="email" required maxlength="200" autocomplete="email"></label></div>' +
+    '<div class="two"><label class="f">Telefono (facoltativo)<input type="tel" name="phone" maxlength="40" autocomplete="tel"></label><label class="f">Di cosa si tratta<select name="topic" id="c-topic"><option>Informazioni su un prodotto</option><option>Un ordine già fatto</option><option>Spedizione e consegna</option><option>Fattura</option><option selected>Altro</option></select></label></div>' +
+    '<label class="f">Prodotto di cui parli (facoltativo)<input type="text" name="product" id="c-product" maxlength="160"></label>' +
+    '<label class="f">Messaggio<textarea name="message" required maxlength="4000" style="min-height:140px"></textarea></label>' +
+    '<div style="position:absolute;left:-9999px" aria-hidden="true"><label>Non compilare<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>' +
+    '<label class="check"><input type="checkbox" name="consent" required> Ho letto l’<a href="privacy/">informativa privacy</a> e accetto che i miei dati siano usati per rispondere.</label>' +
+    '<div data-err></div><div><button class="btn" type="submit">Invia messaggio</button></div>' +
+    '<noscript><p class="note">Per inviare il modulo serve JavaScript attivo' + (S.email ? ": in alternativa scrivici a " + esc(S.email) : "") + ".</p></noscript></form>" +
+    "<h2>Dove trovarci</h2><ul>" + (S.company ? "<li>" + esc(S.company) + (S.vat ? ", P.IVA " + esc(S.vat) : "") + "</li>" : "") + (S.address ? "<li>" + esc(S.address) + "</li>" : "") +
+    (S.email ? '<li>Email: <a href="mailto:' + esc(S.email) + '">' + esc(S.email) + "</a></li>" : "") + (S.phone ? "<li>Telefono: " + esc(S.phone) + "</li>" : "") +
+    (S.pec ? "<li>PEC: " + esc(S.pec) + "</li>" : "") + (S.instagram ? '<li>Instagram: <a href="https://www.instagram.com/' + esc(S.instagram.replace(/^@/, "")) + '/" target="_blank" rel="noopener">@' + esc(S.instagram.replace(/^@/, "")) + "</a></li>" : "") +
+    (etsy ? "<li>Etsy: " + etsyA("il nostro negozio su Etsy ↗") + "</li>" : "") + "</ul>" +
+    '<h2>Prima di scriverci</h2><p>Tempi e costi di consegna li trovi in <a href="spedizioni/">Spedizioni e resi</a>, le regole del recesso in <a href="recesso/">Diritto di recesso</a>. Per una ceramica che ti interessa indica il nome del pezzo: così possiamo risponderti con le misure e con una foto in più, se serve.</p></article>';
+  shell({ path: "contatti/", mode: "contact", title: fit("Contatti | " + brand, "Contatti"), priority: "0.5",
+    desc: cut("Scrivi a " + brand + " per informazioni su una ceramica, un ordine o una spedizione. Modulo contatti, indirizzo ed email.", 155),
+    ld: [crumbLd([["Home", ""], ["Contatti", "contatti/"]]), Object.assign({ "@context": "https://schema.org", "@type": "ContactPage", url: SITE + "contatti/", name: "Contatti" })],
+    body: crumbHtml([["Home", ""], ["Contatti", "contatti/"]]) + contactBody });
 
   const legal = [["condizioni", "Condizioni di vendita", "Condizioni di vendita di " + brand + ": prezzi, ordini, consegna, garanzia legale, recesso e controversie."],
     ["recesso", "Diritto di recesso", "Come recedere dall’acquisto entro 14 giorni: procedura, rimborso e modulo tipo."],
@@ -288,7 +316,7 @@ async function main() {
     ["cookie", "Cookie", "Il sito usa solo strumenti tecnici necessari al funzionamento: nessun cookie di profilazione."]];
   legal.forEach(([k, t, d]) => shell({ path: k + "/", title: fit(t + " | " + brand, t), desc: cut(d, 155), priority: "0.3", ld: [crumbLd([["Home", ""], [t, k + "/"]])], body: crumbHtml([["Home", ""], [t, k + "/"]]) + api.LEGAL[k]() }));
 
-  shell({ path: "carrello/", title: fit("Carrello | " + brand, "Carrello"), desc: "Il tuo carrello e il modulo per inviare la richiesta d’ordine.", noindex: true, cart: true,
+  shell({ path: "carrello/", title: fit("Carrello | " + brand, "Carrello"), desc: "Il tuo carrello e il modulo per inviare la richiesta d’ordine.", noindex: true, cart: true, mode: "cart",
     body: '<div id="app"><noscript><p class="note" style="margin:24px 0">Per usare il carrello serve JavaScript attivo nel browser.</p></noscript></div>' });
 
   /* ---------- scrittura ---------- */
@@ -312,7 +340,7 @@ async function main() {
   const llms = ["# " + brand, "", "> " + (S.siteDesc || (S.tagline + ". Negozio online di ceramiche turche artigianali dipinte a mano, con spedizione in Italia.")), "",
     "## Informazioni utili", "- Prodotti: " + cats.join(", ") + ", ceramica turca dipinta a mano.", "- Spedizione: solo Italia, " + ship.days + ", " + eur(ship.cost) + " (gratis da " + eur(ship.free) + ").",
     "- Resi: recesso entro 14 giorni dal ricevimento.", "- Fattura: emessa per ogni ordine.", S.email ? "- Contatti: " + S.email : "", "",
-    "## Pagine principali", "- [Negozio](" + SITE + "negozio/): tutta la collezione", "- [Spedizioni e resi](" + SITE + "spedizioni/): tempi, costi e resi", "- [Chi siamo](" + SITE + "chi-siamo/): come selezioniamo le ceramiche", "- [Condizioni di vendita](" + SITE + "condizioni/)", "- [Diritto di recesso](" + SITE + "recesso/)", "",
+    "## Pagine principali", "- [Negozio](" + SITE + "negozio/): tutta la collezione", "- [Spedizioni e resi](" + SITE + "spedizioni/): tempi, costi e resi", "- [Chi siamo](" + SITE + "chi-siamo/): come selezioniamo le ceramiche", "- [Contatti](" + SITE + "contatti/): modulo di contatto" + (etsy ? "\n- [Negozio su Etsy](" + etsy + ")" : ""), "- [Condizioni di vendita](" + SITE + "condizioni/)", "- [Diritto di recesso](" + SITE + "recesso/)", "",
     "## Prodotti", ...products.map((p) => "- [" + p.name + "](" + SITE + productPath(p) + "): " + p.category + ", " + eur(p.price) + (p.dims ? ", " + p.dims : "") + (p.stock > 0 ? ", disponibile" : ", esaurito"))].filter((l, i, a) => l !== "" || a[i - 1] !== "");
   fs.writeFileSync(path.join(OUT, "llms.txt"), llms.join("\n") + "\n");
 

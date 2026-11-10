@@ -243,3 +243,6 @@ input[type=color]{width:100%;height:42px;border:1.5px solid var(--line);border-r
 .foot p{margin:0 0 4px}
 .sec{padding-block:28px}
 .sec h2{margin-bottom:14px}
+.form .check{display:flex;gap:10px;align-items:flex-start;font-size:.92rem}
+.form .check input{margin-top:4px}
+.cartbtn+a,.nav a[target=_blank]{white-space:nowrap}

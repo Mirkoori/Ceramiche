@@ -41,7 +41,7 @@ var DEFAULTS={
   company:"", vat:"", address:"", email:"", phone:"", instagram:"", rea:"", pec:"", regime:"forfettario", siteDesc:"",
   heroImage:"img/hero.jpg", heroAlt:"Piatto turco in ceramica dipinta a mano con tulipani rossi", heroLayout:"split", heroOverlay:55,
   heroTitle:"Ceramiche turche dipinte a mano, scelte una per una", heroText:"Ciotole, piatti, tazze e vasi decorati a mano da artigiani in Turchia. Pezzi da usare ogni giorno, mai due identici.",
-  heroCta:"Scopri la collezione", heroCta2:"La nostra selezione",
+  heroCta:"Scopri la collezione", heroCta2:"La nostra selezione", etsy:"",
   accent:"#1d3fae", accent2:"#0c8a87", fontStyle:"moderno", corners:"morbidi", logo:"", announce:"", showValues:"1", showStory:"1", featured:4
 };
 var DEMO=[
@@ -81,7 +81,7 @@ var sb=null, session=null, isAdmin=false;
 var ADMIN_EMAIL="negozio-admin@example.com";
 var SUPA_URL="https://dbstgkxqnzbaxxxdgqum.supabase.co", SUPA_KEY="sb_publishable_8POu32i6i-kz4IZlbjOQHw_Nrofggk0";
 function U(path){ if(/^(img\/|https?:)/.test(path)) return path; return SUPA_URL+"/storage/v1/object/public/shop-images/"+encodeURI(path); }
-var products=[], loaded=false, orders=[], settings=Object.assign({},DEFAULTS);
+var products=[], loaded=false, orders=[], messages=[], settings=Object.assign({},DEFAULTS);
 var cart=[], filterCat="Tutti", flash=null, gallery=0, btype="privato", loadFailed=false;
 var adminTab="prodotti", edit=null, confirmDel=null, busy=false;
 try{ cart=JSON.parse(localStorage.getItem("cart-v1")||"[]")||[]; }catch(e){ cart=[]; }
@@ -196,8 +196,8 @@ function legalWrap(title,body){
 var LEGAL={
   privacy:function(){return legalWrap("Informativa privacy",
     '<h2>Titolare del trattamento</h2><p>'+S("company","ragione sociale")+', '+S("address","indirizzo")+'. Email: '+S("email","email")+'.</p>'+
-    '<h2>Dati che raccogliamo</h2><p>Nome, indirizzo di spedizione e di fatturazione, email, codice fiscale o partita IVA (con codice SDI o PEC per le aziende) che inserisci nel modulo d’ordine, più i dati tecnici necessari al funzionamento del sito.</p>'+
-    '<h2>Perché li usiamo</h2><ul><li>Gestire l’ordine, la spedizione e l’assistenza (esecuzione del contratto).</li><li>Adempiere a obblighi fiscali e contabili (obbligo di legge).</li><li>Inviare newsletter solo se hai dato un consenso specifico (consenso).</li></ul>'+
+    '<h2>Dati che raccogliamo</h2><p>Nome, indirizzo di spedizione e di fatturazione, email, codice fiscale o partita IVA (con codice SDI o PEC per le aziende) che inserisci nel modulo d’ordine, nome, email e messaggio che ci scrivi dal modulo contatti, più i dati tecnici necessari al funzionamento del sito.</p>'+
+    '<h2>Perché li usiamo</h2><ul><li>Gestire l’ordine, la spedizione e l’assistenza (esecuzione del contratto).</li><li>Rispondere ai messaggi inviati dal modulo contatti (richiesta dell’interessato).</li><li>Adempiere a obblighi fiscali e contabili (obbligo di legge).</li><li>Inviare newsletter solo se hai dato un consenso specifico (consenso).</li></ul>'+
     '<h2>Per quanto tempo</h2><p>I dati d’ordine sono conservati per il tempo richiesto dagli obblighi fiscali (di norma 10 anni). I dati per la newsletter fino alla revoca del consenso.</p>'+
     '<h2>A chi li comunichiamo</h2><p>Corrieri, fornitori di pagamento, fornitori di hosting e consulenti fiscali, nel limite di quanto necessario ai loro servizi.</p>'+
     '<h2>I tuoi diritti</h2><p>Puoi chiedere accesso, rettifica, cancellazione, limitazione, portabilità e opporti al trattamento scrivendo a '+S("email","email")+'. Hai diritto di reclamo al Garante per la protezione dei dati personali (garanteprivacy.it).</p>')},
@@ -236,12 +236,12 @@ function vAdmin(){
   if(!session) return vLogin();
   if(session.user&&session.user.user_metadata&&session.user.user_metadata.must_change_password===true) return vChangePw();
   if(!isAdmin) return '<section class="sec"><div class="empty">Questo account non ha i permessi di gestione. <button class="btn ghost small" data-act="logout">Esci</button></div></section>';
-  var tabs=[["prodotti","Prodotti"],["form",edit&&edit.id?"Modifica":"Nuovo prodotto"],["ordini","Ordini"+(orders.filter(function(o){return o.status!=="evaso"}).length?" ("+orders.filter(function(o){return o.status!=="evaso"}).length+")":"")],["aspetto","Aspetto"],["negozio","Negozio"]];
+  var tabs=[["prodotti","Prodotti"],["form",edit&&edit.id?"Modifica":"Nuovo prodotto"],["ordini","Ordini"+(orders.filter(function(o){return o.status!=="evaso"}).length?" ("+orders.filter(function(o){return o.status!=="evaso"}).length+")":"")],["messaggi","Messaggi"+(messages.filter(function(m){return m.status!=="letto"}).length?" ("+messages.filter(function(m){return m.status!=="letto"}).length+")":"")],["aspetto","Aspetto"],["negozio","Negozio"]];
   var h='<section class="sec"><div class="sec-head"><div><p class="eyebrow">Area riservata</p><h2>Gestione negozio</h2></div><button class="btn ghost small" data-act="logout">Esci</button></div>'+
     '<div class="adm-tabs" role="tablist">'+tabs.map(function(t){return '<button role="tab" data-act="tab" data-v="'+t[0]+'" aria-selected="'+(adminTab===t[0])+'">'+t[1]+'</button>'}).join("")+'</div>';
   if(!sb) h+='<div class="msg err">Collegamento al database non riuscito: ricarica la pagina.</div>';
   if(flash&&flash.type==="adm") h+='<div class="msg '+(flash.ok?'ok':'err')+'" style="margin-bottom:14px">'+esc(flash.text)+'</div>';
-  if(adminTab==="prodotti") h+=aProducts(); else if(adminTab==="form") h+=aForm(); else if(adminTab==="ordini") h+=aOrders(); else if(adminTab==="aspetto") h+=aAspect(); else h+=aSettings();
+  if(adminTab==="prodotti") h+=aProducts(); else if(adminTab==="form") h+=aForm(); else if(adminTab==="ordini") h+=aOrders(); else if(adminTab==="messaggi") h+=aMessages(); else if(adminTab==="aspetto") h+=aAspect(); else h+=aSettings();
   return h+'</section>';
 }
 function aProducts(){
@@ -331,6 +331,17 @@ function aOrders(){
       '<div><button class="btn ghost small" data-act="evaso" data-v="'+esc(o.id)+'">'+(o.status==="evaso"?"Riapri":"Segna come evaso")+'</button></div></div>';
   }).join("");
 }
+function settingsEmail(){ return settings.email||""; }
+function aMessages(){
+  if(!messages.length) return '<div class="empty">Nessun messaggio ricevuto.</div>';
+  return messages.map(function(m){
+    var d=new Date(m.createdAt).toLocaleString("it-IT",{dateStyle:"medium",timeStyle:"short"});
+    return '<div class="invrow" style="display:block;border:1.5px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between"><strong>'+esc(m.name)+'</strong><span>'+(m.status==="letto"?'<span class="pill">letto</span>':'<span class="pill new">nuovo</span>')+' <small style="color:var(--muted)">'+esc(d)+'</small></span></div>'+
+      '<div style="color:var(--muted);font-size:.9rem;margin:4px 0 8px"><a href="mailto:'+esc(m.email)+'">'+esc(m.email)+'</a>'+(m.phone?' · '+esc(m.phone):'')+' · '+esc(m.topic)+(m.product?' · '+esc(m.product):'')+'</div>'+
+      '<p style="white-space:pre-wrap;margin:0 0 10px">'+esc(m.message)+'</p><div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn small" href="mailto:'+esc(m.email)+'?subject='+encodeURIComponent("Re: "+m.topic)+'">Rispondi</a>'+
+      '<button class="btn ghost small" data-act="msgread" data-v="'+esc(m.id)+'">'+(m.status==="letto"?"Segna da leggere":"Segna come letto")+'</button><button class="btn ghost small" data-act="msgdel" data-v="'+esc(m.id)+'">Elimina</button></div></div>';
+  }).join("");
+}
 function aAspect(){
   function f(k,l,t,extra){return '<label class="f">'+l+'<input type="'+(t||"text")+'" name="'+k+'" id="a-'+k+'" value="'+esc(settings[k])+'"'+(extra||"")+'></label>'}
   function sel(k,l,opts){return '<label class="f">'+l+'<select name="'+k+'" id="a-'+k+'">'+opts.map(function(o){return '<option value="'+o[0]+'"'+(String(settings[k])===o[0]?' selected':'')+'>'+o[1]+'</option>'}).join("")+'</select></label>'}
@@ -359,7 +370,7 @@ function aAspect(){
 function aSettings(){
   function f(k,l,t,extra){return '<label class="f">'+l+'<input type="'+(t||"text")+'" name="'+k+'" id="s-'+k+'" value="'+esc(settings[k])+'"'+(extra||"")+'></label>'}
   return '<form class="form" id="sform" style="max-width:720px"><p class="note">Questi dati compaiono nell’intestazione, nel piè di pagina e nei testi legali.</p>'+
-    f("brand","Nome del brand")+f("tagline","Frase sotto il logo")+f("siteDesc","Descrizione del sito per Google (70-155 caratteri)")+
+    f("brand","Nome del brand")+f("tagline","Frase sotto il logo")+f("siteDesc","Descrizione del sito per Google (70-155 caratteri)")+f("etsy","Link del tuo negozio Etsy (https://www.etsy.com/shop/…)","url",' placeholder="https://www.etsy.com/shop/NomeNegozio"')+
     '<label class="f">Storia del brand<textarea name="story" id="s-story">'+esc(settings.story)+'</textarea></label>'+
     '<div class="two">'+f("shippingCost","Costo spedizione (€)","number",' min="0" step="0.1"')+f("freeFrom","Spedizione gratis da (€)","number",' min="0" step="1"')+'</div>'+f("shippingDays","Tempi di consegna")+
     '<h3 style="margin-top:8px">Dati del venditore</h3>'+f("company","Ragione sociale")+'<div class="two">'+f("vat","Partita IVA")+f("phone","Telefono","tel")+'</div>'+f("address","Indirizzo")+f("rea","Registro Imprese (CCIAA e numero REA)")+'<label class="f">Regime fiscale<select name="regime" id="s-regime"><option value="forfettario"'+(settings.regime==="forfettario"?' selected':'')+'>Forfettario (senza IVA)</option><option value="ordinario"'+(settings.regime==="ordinario"?' selected':'')+'>Ordinario (prezzi con IVA)</option></select></label>'+f("email","Email di contatto","email")+f("pec","PEC","email")+f("instagram","Instagram (solo nome utente)")+
@@ -371,7 +382,7 @@ function route(){ var h=location.hash.slice(1)||"home"; return h; }
 function render(){
   if(ADMIN){ $("#app").innerHTML=vAdmin(); updateChrome(); seoUpdate(); applyTheme(); return; }
   if(PAGE==="cart"){ $("#app").innerHTML=vCart(); updateChrome(); return; }
-  if(PAGE==="static"){ updateChrome(); return; }
+  if(PAGE==="static"||PAGE==="contact"){ updateChrome(); return; }
   var r=route(), html;
   if(r==="home") html=vHome();
   else if(r==="negozio") html=vShop();
@@ -411,6 +422,8 @@ document.addEventListener("click",function(ev){
   else if(act==="inc"){ addToCart(v,1); render(); }
   else if(act==="dec"){ var c=cart.find(function(x){return x.id===v}); if(c){ c.qty--; if(c.qty<=0) cart=cart.filter(function(x){return x.id!==v}); saveCart(); } render(); }
   else if(act==="rm"){ cart=cart.filter(function(x){return x.id!==v}); saveCart(); render(); }
+  else if(act==="msgread"){ var mm=messages.find(function(x){return x.id===v}); if(mm) guard(async function(){ var ns=mm.status==="letto"?"nuovo":"letto"; await chk(sb.from("shop_messages").update({status:ns}).eq("id",v)); mm.status=ns; }); }
+  else if(act==="msgdel"){ if(confirm("Eliminare questo messaggio?")) guard(async function(){ await chk(sb.from("shop_messages").delete().eq("id",v)); messages=messages.filter(function(x){return x.id!==v}); }); }
   else if(act==="imgclear"||act==="imgdef"){ guard(async function(){ var n=Object.assign({},DEFAULTS,settings); n[v]=act==="imgdef"?DEFAULTS[v]:""; await saveSettings(n); say("adm","Immagine aggiornata.",true); }); }
   else if(act==="aspreset"){ guard(async function(){ var n=Object.assign({},DEFAULTS,settings); ["heroLayout","heroOverlay","heroTitle","heroText","heroCta","heroCta2","accent","accent2","fontStyle","corners","showValues","showStory","featured","announce","heroAlt"].forEach(function(k){ n[k]=DEFAULTS[k]; }); await saveSettings(n); applyTheme(); say("adm","Stile iniziale ripristinato.",true); }); }
   else if(act==="tab"){ adminTab=v; flash=null; if(v!=="form") edit=null; render(); }
@@ -458,6 +471,25 @@ document.addEventListener("change",function(ev){
 });
 document.addEventListener("submit",function(ev){
   var f=ev.target; ev.preventDefault();
+  if(f.id==="contact"){
+    var cd=new FormData(f), cb=f.querySelector("[data-err]"), cbtn=f.querySelector("button[type=submit]");
+    function cfail(m){ cb.innerHTML='<div class="msg err">'+esc(m)+'</div>'; cbtn.disabled=false; }
+    if(cd.get("website")) { cb.innerHTML='<div class="msg ok">Messaggio inviato.</div>'; return; }
+    var cn=String(cd.get("name")||"").trim(), ce=String(cd.get("email")||"").trim(), cm=String(cd.get("message")||"").trim();
+    if(!cn) return cfail("Scrivi il tuo nome.");
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ce)) return cfail("Controlla l’indirizzo email.");
+    if(cm.length<5) return cfail("Scrivi un messaggio un po’ più lungo.");
+    if(!cd.get("consent")) return cfail("Per inviare serve spuntare la presa visione dell’informativa privacy.");
+    cbtn.disabled=true; cb.innerHTML="";
+    (async function(){
+      try{
+        if(!sb) throw {code:"no_db"};
+        await chk(sb.from("shop_messages").insert({name:cn,email:ce,phone:String(cd.get("phone")||"").trim(),topic:String(cd.get("topic")||"Altro"),product:String(cd.get("product")||"").trim(),message:cm}));
+        f.innerHTML='<div class="msg ok">Grazie, abbiamo ricevuto il tuo messaggio. Ti rispondiamo appena possibile all’indirizzo '+esc(ce)+'.</div>';
+      }catch(e){ cfail("Non siamo riusciti a inviare il messaggio. Riprova tra poco"+(settingsEmail()?" oppure scrivici a "+settingsEmail():"")+"."); }
+    })();
+    return;
+  }
   if(f.id==="checkout"){
     var L=cartLines(), t=totals(), fd=new FormData(f);
     var order={items:L.map(function(l){return {id:l.p.id,name:l.p.name,price:l.p.price,qty:l.qty}}),subtotal:t.sub,shipping:t.ship,total:t.total,
@@ -566,6 +598,8 @@ async function loadAll(){
   var st=await sb.from("shop_settings").select("data").eq("id",1).maybeSingle();
   if(!st.error&&st.data&&st.data.data) settings=Object.assign({},DEFAULTS,st.data.data);
   if(isAdmin&&ADMIN){
+    var ms=await sb.from("shop_messages").select("*").order("created_at",{ascending:false}).limit(200);
+    if(!ms.error) messages=ms.data.map(function(m){return {id:m.id,name:m.name,email:m.email,phone:m.phone,topic:m.topic,product:m.product,message:m.message,status:m.status,createdAt:Date.parse(m.created_at)||0}});
     var od=await sb.from("shop_orders").select("*").order("created_at",{ascending:false}).limit(200);
     if(!od.error) orders=od.data.map(function(o){return {id:o.id,items:o.items,subtotal:Number(o.subtotal),shipping:Number(o.shipping),total:Number(o.total),customer:o.customer,billing:o.billing||{},number:o.order_number,invoiceNumber:o.invoice_number||"",status:o.status,createdAt:Date.parse(o.created_at)||0}});
   }
@@ -574,6 +608,7 @@ async function loadAll(){
 /* ---------- avvio: la pagina si vede subito, i dati arrivano dopo ---------- */
 if(window.__BUILD){ window.__api={LEGAL:LEGAL,DEMO:DEMO,DEFAULTS:DEFAULTS,vessel:vessel,themeCss:themeCss,FONTS:FONTS,okHex:okHex,setSettings:function(s){ settings=Object.assign({},DEFAULTS,s); }}; return; }
 render();
+if(PAGE==="contact"){ try{ var qp=new URLSearchParams(location.search).get("prodotto"); if(qp){ var pf=document.getElementById("c-product"); if(pf) pf.value=qp; var ts=document.getElementById("c-topic"); if(ts) ts.value="Informazioni su un prodotto"; } }catch(e){} }
 if(PAGE==="cart") setTimeout(function(){ if(!loaded){ loadFailed=true; render(); } },8000);
 if(PAGE!=="static"&&window.supabase&&window.supabase.createClient){
   sb=window.supabase.createClient(SUPA_URL,SUPA_KEY);
