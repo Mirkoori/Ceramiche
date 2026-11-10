@@ -9,7 +9,7 @@ Negozio online di ceramiche artigianali turche. Sito statico (GitHub Pages) con 
 
 ## Gestione
 
-Pagina separata `admin.html` (non collegata dal menu del sito): accesso con email e password. Può gestire il negozio solo chi è nella tabella `shop_admins`. Da lì si caricano prodotti e foto, si vedono gli ordini e si compilano i dati del negozio usati nei testi legali.
+Pagina separata `admin.html` (non collegata dal menu del sito): accesso con la sola password. Esiste un solo account di gestione, creato nel database con una password provvisoria che va cambiata al primo accesso. Può gestire il negozio solo chi è nella tabella `shop_admins`. Da lì si caricano prodotti e foto, si vedono gli ordini e si compilano i dati del negozio usati nei testi legali.
 
 ## Stato
 

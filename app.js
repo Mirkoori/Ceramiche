@@ -50,6 +50,7 @@ function picOf(p){
 /* ---------- stato ---------- */
 var ADMIN=!!window.ADMIN_PAGE;
 var sb=null, session=null, isAdmin=false;
+var ADMIN_EMAIL="negozio-admin@example.com";
 var SUPA_URL="https://dbstgkxqnzbaxxxdgqum.supabase.co", SUPA_KEY="sb_publishable_8POu32i6i-kz4IZlbjOQHw_Nrofggk0";
 function U(path){ return SUPA_URL+"/storage/v1/object/public/shop-images/"+encodeURI(path); }
 var products=[], loaded=false, orders=[], settings=Object.assign({},DEFAULTS);
@@ -190,12 +191,16 @@ var LEGAL={
 };
 
 /* ---------- admin ---------- */
-var loginMsg=null;
+var loginMsg=null, pwMsg=null;
+function vChangePw(){
+  return '<section class="sec"><div style="max-width:420px"><p class="eyebrow">Primo accesso</p><h2 style="margin-bottom:12px">Scegli la tua password</h2><p class="note" style="margin-bottom:16px">Stai usando la password provvisoria. Scegline una tua: almeno 10 caratteri.</p><form class="form" id="chpw"><input type="text" name="u" value="'+ADMIN_EMAIL+'" autocomplete="username" hidden><label class="f">Nuova password<input type="password" name="np" id="n-pass" required minlength="10" autocomplete="new-password"></label><label class="f">Ripeti la nuova password<input type="password" name="np2" id="n-pass2" required minlength="10" autocomplete="new-password"></label>'+(pwMsg?'<div class="msg err">'+esc(pwMsg)+'</div>':'')+'<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" type="submit">Salva e continua</button><button class="btn ghost" type="button" data-act="logout">Esci</button></div></form></div></section>';
+}
 function vLogin(){
-  return '<section class="sec"><div style="max-width:420px"><p class="eyebrow">Area riservata</p><h2 style="margin-bottom:16px">Accesso gestione</h2><form class="form" id="login"><label class="f">Email<input type="email" name="email" id="l-email" required autocomplete="username"></label><label class="f">Password<input type="password" name="password" id="l-pass" required minlength="8" autocomplete="current-password"></label>'+(loginMsg?'<div class="msg '+(loginMsg.ok?'ok':'err')+'">'+esc(loginMsg.text)+'</div>':'')+'<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" type="submit" value="in">Accedi</button><button class="btn ghost" type="submit" value="up">Crea account</button></div><p class="note">Dopo aver creato l’account serve l’abilitazione come gestore: chiedila a chi ha costruito il sito.</p></form></div></section>';
+  return '<section class="sec"><div style="max-width:420px"><p class="eyebrow">Area riservata</p><h2 style="margin-bottom:16px">Accesso gestione</h2><form class="form" id="login"><input type="text" name="u" value="'+ADMIN_EMAIL+'" autocomplete="username" hidden><label class="f">Password<input type="password" name="password" id="l-pass" required autocomplete="current-password"></label>'+(loginMsg?'<div class="msg '+(loginMsg.ok?'ok':'err')+'">'+esc(loginMsg.text)+'</div>':'')+'<div><button class="btn" type="submit">Accedi</button></div></form></div></section>';
 }
 function vAdmin(){
   if(!session) return vLogin();
+  if(session.user&&session.user.user_metadata&&session.user.user_metadata.must_change_password===true) return vChangePw();
   if(!isAdmin) return '<section class="sec"><div class="empty">Questo account non ha i permessi di gestione. <button class="btn ghost small" data-act="logout">Esci</button></div></section>';
   var tabs=[["prodotti","Prodotti"],["form",edit&&edit.id?"Modifica":"Nuovo prodotto"],["ordini","Ordini"+(orders.filter(function(o){return o.status!=="evaso"}).length?" ("+orders.filter(function(o){return o.status!=="evaso"}).length+")":"")],["negozio","Negozio"]];
   var h='<section class="sec"><div class="sec-head"><div><p class="eyebrow">Area riservata</p><h2>Gestione negozio</h2></div><button class="btn ghost small" data-act="logout">Esci</button></div>'+
@@ -379,13 +384,25 @@ document.addEventListener("submit",function(ev){
     })();
   }
   else if(f.id==="login"){
-    var lf=new FormData(f), isUp=ev.submitter&&ev.submitter.value==="up", em=String(lf.get("email")).trim(), pw=String(lf.get("password"));
+    var lf=new FormData(f), em=ADMIN_EMAIL, pw=String(lf.get("password"));
     (async function(){
       try{
         if(!sb) throw {message:"no_db"};
-        if(isUp){ var r1=await sb.auth.signUp({email:em,password:pw}); if(r1.error) throw r1.error; loginMsg={ok:true,text:"Account creato. Controlla la email per confermarlo, poi torna qui e accedi."}; }
-        else { var r2=await sb.auth.signInWithPassword({email:em,password:pw}); if(r2.error) throw r2.error; loginMsg=null; }
-      }catch(e){ loginMsg={ok:false,text:(e&&e.message==="Invalid login credentials")?"Email o password non corrette.":"Operazione non riuscita: "+((e&&e.message)||"errore")}; }
+        { var r2=await sb.auth.signInWithPassword({email:em,password:pw}); if(r2.error) throw r2.error; loginMsg=null; }
+      }catch(e){ loginMsg={ok:false,text:(e&&e.message==="Invalid login credentials")?"Password non corretta.":"Operazione non riuscita: "+((e&&e.message)||"errore")}; }
+      render();
+    })();
+  }
+  else if(f.id==="chpw"){
+    var pf=new FormData(f), np=String(pf.get("np")), np2=String(pf.get("np2"));
+    if(np.length<10){ pwMsg="La password deve avere almeno 10 caratteri."; render(); return; }
+    if(np!==np2){ pwMsg="Le due password non coincidono."; render(); return; }
+    (async function(){
+      try{
+        var r=await sb.auth.updateUser({password:np,data:{must_change_password:false}});
+        if(r.error) throw r.error;
+        pwMsg=null; var g=await sb.auth.getSession(); session=g.data.session; await checkAdmin(); await loadAll();
+      }catch(e){ var m=(e&&e.message)||""; pwMsg=/different from the old password/i.test(m)?"Scegli una password diversa da quella provvisoria.":"Non è stato possibile salvare la password. Riprova."; }
       render();
     })();
   }
