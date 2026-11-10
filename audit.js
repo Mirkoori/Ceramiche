@@ -63,7 +63,9 @@ for (const f of htmlFiles) {
   q("a[href]").forEach((a) => {
     const h = a.getAttribute("href");
     if (/^(https?:|mailto:|tel:|#|data:)/.test(h)) return;
-    if (!exists(h)) bad(page, "link interno rotto " + h);
+    const base = ((doc.querySelector("base") || {}).getAttribute && doc.querySelector("base").getAttribute("href")) || "/";
+    const target = h.startsWith(base) ? h.slice(base.length) : h.replace(/^\//, "");
+    if (!exists(target)) bad(page, "link interno rotto " + h);
   });
   q("main img").forEach((i) => {
     if (!i.hasAttribute("width") || !i.hasAttribute("height")) warn(page, "immagine senza width/height");
