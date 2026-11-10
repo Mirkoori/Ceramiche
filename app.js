@@ -252,9 +252,11 @@ function vAdmin(){
   if(session.user&&session.user.user_metadata&&session.user.user_metadata.must_change_password===true) return vChangePw();
   if(!isAdmin) return '<section class="sec"><div class="empty">Questo account non ha i permessi di gestione. <button class="btn ghost small" data-act="logout">Esci</button></div></section>';
   var tabs=[["prodotti","Prodotti"],["form",edit&&edit.id?"Modifica":"Nuovo prodotto"],["ordini","Ordini"+(orders.filter(function(o){return o.status!=="evaso"}).length?" ("+orders.filter(function(o){return o.status!=="evaso"}).length+")":"")],["messaggi","Messaggi"+(messages.filter(function(m){return m.status!=="letto"}).length?" ("+messages.filter(function(m){return m.status!=="letto"}).length+")":"")],["aspetto","Aspetto"],["negozio","Negozio"]];
-  var h='<section class="sec"><div class="sec-head"><div><p class="eyebrow">Area riservata</p><h2>Gestione negozio</h2></div><button class="btn ghost small" data-act="logout">Esci</button></div>'+
+  var h='<section class="sec"><div class="sec-head"><div><p class="eyebrow">Area riservata</p><h2>Gestione negozio</h2></div><div style="display:flex;gap:8px"><button class="btn ghost small" data-act="pubnow">Pubblica ora</button><button class="btn ghost small" data-act="logout">Esci</button></div></div>'+
     '<div class="adm-tabs" role="tablist">'+tabs.map(function(t){return '<button role="tab" data-act="tab" data-v="'+t[0]+'" aria-selected="'+(adminTab===t[0])+'">'+t[1]+'</button>'}).join("")+'</div>';
   if(!sb) h+='<div class="msg err">Collegamento al database non riuscito: ricarica la pagina.</div>';
+  var pm={wait:["ok","Salvato. Sto per aggiornare il sito pubblico…"],ok:["ok","Pubblicazione avviata: le modifiche saranno online sul sito tra circa 1-2 minuti."],off:["err","Pubblicazione automatica non ancora attiva: le modifiche arriveranno al prossimo aggiornamento orario."],err:["err","Non sono riuscito ad avviare la pubblicazione. Riprova con «Pubblica ora» tra poco."]}[pubState];
+  if(pm) h+='<div class="msg '+pm[0]+'" style="margin-bottom:14px">'+esc(pm[1])+'</div>';
   if(flash&&flash.type==="adm") h+='<div class="msg '+(flash.ok?'ok':'err')+'" style="margin-bottom:14px">'+esc(flash.text)+'</div>';
   if(adminTab==="prodotti") h+=aProducts(); else if(adminTab==="form") h+=aForm(); else if(adminTab==="ordini") h+=aOrders(); else if(adminTab==="messaggi") h+=aMessages(); else if(adminTab==="aspetto") h+=aAspect(); else h+=aSettings();
   return h+'</section>';
@@ -437,6 +439,7 @@ document.addEventListener("click",function(ev){
   else if(act==="inc"){ addToCart(v,1); render(); }
   else if(act==="dec"){ var c=cart.find(function(x){return x.id===v}); if(c){ c.qty--; if(c.qty<=0) cart=cart.filter(function(x){return x.id!==v}); saveCart(); } render(); }
   else if(act==="rm"){ cart=cart.filter(function(x){return x.id!==v}); saveCart(); render(); }
+  else if(act==="pubnow"){ queueRebuild(); }
   else if(act==="msgread"){ var mm=messages.find(function(x){return x.id===v}); if(mm) guard(async function(){ var ns=mm.status==="letto"?"nuovo":"letto"; await chk(sb.from("shop_messages").update({status:ns}).eq("id",v)); mm.status=ns; }); }
   else if(act==="msgdel"){ if(confirm("Eliminare questo messaggio?")) guard(async function(){ await chk(sb.from("shop_messages").delete().eq("id",v)); messages=messages.filter(function(x){return x.id!==v}); }); }
   else if(act==="imgclear"||act==="imgdef"){ guard(async function(){ var n=Object.assign({},DEFAULTS,settings); n[v]=act==="imgdef"?DEFAULTS[v]:""; await saveSettings(n); say("adm","Immagine aggiornata.",true); }); }
@@ -450,8 +453,8 @@ document.addEventListener("click",function(ev){
   else if(act==="cancel"){ edit=null; adminTab="prodotti"; render(); }
   else if(act==="del"){ confirmDel=v; render(); }
   else if(act==="delx"){ confirmDel=null; render(); }
-  else if(act==="del2"){ confirmDel=null; guard(async function(){ await chk(sb.from("shop_products").delete().eq("id",v)); await loadAll(); say("adm","Prodotto eliminato.",true); }); }
-  else if(act==="vis"){ var q=products.find(function(x){return x.id===v}); if(q) guard(async function(){ await chk(sb.from("shop_products").update({visible:q.visible===false}).eq("id",v)); await loadAll(); say("adm",q.visible===false?"Prodotto visibile nel negozio.":"Prodotto nascosto.",true); }); }
+  else if(act==="del2"){ confirmDel=null; guard(async function(){ await chk(sb.from("shop_products").delete().eq("id",v)); queueRebuild(); await loadAll(); say("adm","Prodotto eliminato.",true); }); }
+  else if(act==="vis"){ var q=products.find(function(x){return x.id===v}); if(q) guard(async function(){ await chk(sb.from("shop_products").update({visible:q.visible===false}).eq("id",v)); queueRebuild(); await loadAll(); say("adm",q.visible===false?"Prodotto visibile nel negozio.":"Prodotto nascosto.",true); }); }
   else if(act==="seed"){ guard(async function(){ var now=Date.now(); var rows=DEMO.map(function(d,i){ return {name:d.name,category:d.category,type:d.type,price:d.price,stock:d.stock,descr:d.desc,dims:d.dims,c1:d.c1,c2:d.c2,visible:true,slug:slugify(d.name),created_at:new Date(now-i*1000).toISOString()}; }); await chk(sb.from("shop_products").insert(rows)); await loadAll(); say("adm","Prodotti di esempio importati. Puoi modificarli o eliminarli.",true); }); }
   else if(act==="rmphoto"){ if(edit){ syncAlts(); edit.images.splice(Number(v),1); edit.alts.splice(Number(v),1); $("#photos").innerHTML=photosHtml(); $("#alts").innerHTML=altsHtml(); seoUpdate(); } }
   else if(act==="evaso"){ var o=orders.find(function(x){return x.id===v}); if(o) guard(async function(){
@@ -564,7 +567,7 @@ document.addEventListener("submit",function(ev){
       else { var base=slugify(data.name)||"prodotto", done=false;
         for(var k=0;k<6&&!done;k++){ try{ await chk(sb.from("shop_products").insert(Object.assign({slug:k?base+"-"+(k+1):base},data))); done=true; }catch(e){ if(String(e.code)!=="23505") throw e; } }
         if(!done) throw {code:"slug"}; }
-      await loadAll();
+      queueRebuild(); await loadAll();
       edit=null; adminTab="prodotti"; say("adm","Prodotto salvato.",true);
     });
   }
@@ -602,7 +605,17 @@ async function shrink(file,max){
     return blob&&blob.size<file.size?blob:file;
   }catch(e){ return file; }
 }
-async function saveSettings(n){ await chk(sb.from("shop_settings").upsert({id:1,data:n,updated_at:new Date().toISOString()})); settings=n; }
+var pubState="", pubTimer=null;
+function queueRebuild(){
+  if(!sb||!isAdmin) return; clearTimeout(pubTimer); pubState="wait";
+  pubTimer=setTimeout(async function(){
+    try{ var r=await sb.functions.invoke("shop-rebuild"); var d=r&&r.data; pubState=d&&d.ok?"ok":(d&&d.error==="token_mancante"?"off":"err"); }
+    catch(e){ pubState="err"; }
+    if(ADMIN) render();
+  },3000);
+  if(ADMIN) render();
+}
+async function saveSettings(n){ await chk(sb.from("shop_settings").upsert({id:1,data:n,updated_at:new Date().toISOString()})); settings=n; queueRebuild(); }
 async function chk(q){ var r=await q; if(r.error) throw {code:r.error.code||r.error.message}; return r.data; }
 function mapProduct(r){ return {id:r.id,name:r.name,category:r.category,type:r.type,price:Number(r.price),stock:r.stock,desc:r.descr,dims:r.dims,material:r.material,care:r.care,c1:r.c1,c2:r.c2,visible:r.visible,images:r.images||[],alts:r.image_alts||[],slug:r.slug||"",meta:r.meta_desc||"",createdAt:Date.parse(r.created_at)||0}; }
 async function checkAdmin(){ isAdmin=false; if(sb&&session){ var r=await sb.rpc("is_shop_admin"); isAdmin=!r.error&&r.data===true; } }
